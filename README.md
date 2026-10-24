@@ -176,6 +176,18 @@ Banco indisponível (`503 Service Unavailable`):
 }
 ```
 
+### `GET /api/v1/healthz`
+
+Liveness probe independente do banco:
+
+```json
+{"status": "ok"}
+```
+
+Retorna `200` sempre que o processo HTTP está no ar. Use este endpoint no
+healthcheck de deploy; o `/api/v1/status` continua reportando a saúde do banco
+e pode retornar `503`.
+
 ## Stations
 
 CRUD em `/api/v1/stations`. O identificador do recurso é o `site_id`.
@@ -372,8 +384,8 @@ O projeto tem dois workflows:
 1. Copia o binário para `releases/<release-id>/`.
 2. Atualiza o ponteiro `current_release` e o binário estável usado pelo PM2.
 3. Executa `pm2 startOrReload ecosystem.config.cjs --update-env` e `pm2 save`.
-4. Valida `GET /api/v1/status` (aceita qualquer HTTP < 500; um `503` pode
-   significar apenas banco indisponível).
+4. Valida `GET /api/v1/healthz` (liveness). Por compatibilidade, também aceita
+   um `503` de `/api/v1/status`, que indica processo no ar mas banco indisponível.
 5. Em caso de falha, faz rollback para a release anterior.
 6. Mantém as 5 releases mais recentes (`KEEP_RELEASES`).
 
@@ -419,6 +431,14 @@ pm2 logs api-stations-and-radio-link
 pm2 restart api-stations-and-radio-link
 ```
 
+Se `GET /api/v1/status` retornar `503`, o processo está no ar mas o banco não
+responde. Verifique o `.env` em `/root/app/api-stations-and-radio-link/.env`,
+se o MySQL está rodando e os logs do PM2. Após corrigir, reinicie:
+
+```bash
+pm2 restart api-stations-and-radio-link --update-env
+```
+
 ### Secrets do GitHub
 
 Configure em **Settings → Secrets and variables → Actions** (ou no environment
@@ -433,7 +453,7 @@ Configure em **Settings → Secrets and variables → Actions** (ou no environme
 | `DEPLOY_PORT` | não | `22` | Porta SSH |
 | `DEPLOY_PATH` | não | `/root/app/api-stations-and-radio-link` | Diretório de deploy |
 | `PM2_APP_NAME` | não | `api-stations-and-radio-link` | Nome do processo no PM2 |
-| `HEALTHCHECK_URL` | não | `http://127.0.0.1:8080/api/v1/status` | URL de healthcheck |
+| `HEALTHCHECK_URL` | não | `http://127.0.0.1:8080/api/v1/healthz` | URL de healthcheck |
 
 Para gerar `DEPLOY_KNOWN_HOSTS`:
 

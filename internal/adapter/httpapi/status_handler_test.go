@@ -32,6 +32,28 @@ func newDiscardLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(io.Discard, nil))
 }
 
+func TestStatusHandler_Health(t *testing.T) {
+	t.Parallel()
+
+	handler := httpapi.NewStatusHandler(checkerStub{}, newDiscardLogger())
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil)
+	response := httptest.NewRecorder()
+
+	handler.Health(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", response.Code, http.StatusOK)
+	}
+
+	var body httpapi.HealthResponse
+	if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Status != "ok" {
+		t.Errorf("status = %q, want ok", body.Status)
+	}
+}
+
 func TestStatusHandler_ServeHTTP(t *testing.T) {
 	t.Parallel()
 

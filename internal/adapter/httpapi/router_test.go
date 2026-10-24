@@ -39,6 +39,18 @@ func TestRouter(t *testing.T) {
 		}
 	})
 
+	t.Run("health route", func(t *testing.T) {
+		t.Parallel()
+
+		router := newRouter(checkerStub{})
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/healthz", nil))
+
+		if response.Code != http.StatusOK {
+			t.Errorf("status code = %d, want %d", response.Code, http.StatusOK)
+		}
+	})
+
 	t.Run("method not allowed", func(t *testing.T) {
 		t.Parallel()
 

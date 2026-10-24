@@ -6,7 +6,8 @@ PM2_APP_NAME="${PM2_APP_NAME:-${SERVICE_NAME:-$APP_NAME}}"
 DEPLOY_DIR="${DEPLOY_DIR:-/root/app/api-stations-and-radio-link}"
 BIN_SOURCE="${BIN_SOURCE:-$DEPLOY_DIR/incoming/api}"
 BINARY_NAME="${BINARY_NAME:-api}"
-HEALTHCHECK_URL="${HEALTHCHECK_URL-http://127.0.0.1:8080/api/v1/status}"
+HEALTHCHECK_URL="${HEALTHCHECK_URL-http://127.0.0.1:8080/api/v1/healthz}"
+STATUS_URL="${STATUS_URL-http://127.0.0.1:8080/api/v1/status}"
 HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-15}"
 HEALTHCHECK_INTERVAL="${HEALTHCHECK_INTERVAL:-2}"
 KEEP_RELEASES="${KEEP_RELEASES:-5}"
@@ -160,9 +161,10 @@ wait_for_health() {
   for attempt in $(seq 1 "$HEALTHCHECK_RETRIES"); do
     code="$(http_status "$HEALTHCHECK_URL")"
 
-    # Any HTTP response below 500 means the process is accepting requests.
-    # A 503 from /status is accepted because it can mean only the database is down.
-    if [ -n "$code" ] && [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; then
+    # /healthz returns 200 independently of the database. A 503 from /status is
+    # also accepted for compatibility: it means the process is up but the
+    # database is unavailable.
+    if [ -n "$code" ] && { { [ "$code" -ge 200 ] && [ "$code" -lt 500 ]; } || [ "$code" -eq 503 ]; }; then
       log "healthcheck OK (HTTP $code)"
       return 0
     fi
@@ -212,6 +214,13 @@ if ! wait_for_health; then
   log "healthcheck failed"
   rollback
   die "deployment failed healthcheck; rolled back"
+fi
+
+if [ -n "$STATUS_URL" ]; then
+  status_code="$(http_status "$STATUS_URL")"
+  if [ "$status_code" != "200" ]; then
+    log "warning: $STATUS_URL returned HTTP ${status_code:-000}; check database connectivity (.env and MySQL)"
+  fi
 fi
 
 log "release $RELEASE_ID is live"

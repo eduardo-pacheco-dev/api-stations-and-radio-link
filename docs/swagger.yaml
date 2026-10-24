@@ -9,6 +9,12 @@ definitions:
         example: unexpected internal error
         type: string
     type: object
+  httpapi.HealthResponse:
+    properties:
+      status:
+        example: ok
+        type: string
+    type: object
   station.Page:
     properties:
       items:
@@ -229,6 +235,20 @@ info:
   title: API Stations and Radio Link
   version: "1.0"
 paths:
+  /healthz:
+    get:
+      description: Returns 200 when the HTTP server is running, independently of database
+        connectivity.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/httpapi.HealthResponse'
+      summary: Liveness probe
+      tags:
+      - health
   /stations:
     get:
       description: Returns a paginated list of stations.

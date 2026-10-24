@@ -8,7 +8,7 @@ import (
 
 // RouterConfig contains the HTTP handlers wired into the router.
 type RouterConfig struct {
-	StatusHandler  http.Handler
+	StatusHandler  *StatusHandler
 	StationHandler *StationHandler
 	SwaggerHandler http.Handler
 	Logger         *slog.Logger
@@ -23,6 +23,7 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	mux := http.NewServeMux()
 	mux.Handle("GET /api/v1/status", cfg.StatusHandler)
+	mux.HandleFunc("GET /api/v1/healthz", cfg.StatusHandler.Health)
 
 	if cfg.StationHandler != nil {
 		cfg.StationHandler.Register(mux)

@@ -47,6 +47,23 @@ func (h *StatusHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, statusCode, report, h.logger)
 }
 
+// HealthResponse is the liveness response.
+type HealthResponse struct {
+	Status string `json:"status" example:"ok"`
+}
+
+// Health godoc
+//
+//	@Summary		Liveness probe
+//	@Description	Returns 200 when the HTTP server is running, independently of database connectivity.
+//	@Tags			health
+//	@Produce		json
+//	@Success		200	{object}	httpapi.HealthResponse
+//	@Router			/healthz [get]
+func (h *StatusHandler) Health(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, HealthResponse{Status: "ok"}, h.logger)
+}
+
 func writeJSON(w http.ResponseWriter, statusCode int, payload any, logger *slog.Logger) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(statusCode)
