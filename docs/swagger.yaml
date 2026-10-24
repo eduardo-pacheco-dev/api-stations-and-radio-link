@@ -1,0 +1,74 @@
+basePath: /api/v1
+definitions:
+  status.Database:
+    properties:
+      driver:
+        example: mysql
+        type: string
+      error:
+        example: database unreachable
+        type: string
+      latency_ms:
+        example: 1.42
+        type: number
+      status:
+        enum:
+        - up
+        - down
+        example: up
+        type: string
+    type: object
+  status.Report:
+    properties:
+      database:
+        $ref: '#/definitions/status.Database'
+      environment:
+        example: development
+        type: string
+      service:
+        example: api-stations-and-radio-link
+        type: string
+      status:
+        enum:
+        - ok
+        - degraded
+        example: ok
+        type: string
+      timestamp:
+        example: "2026-10-24T12:00:00Z"
+        type: string
+      uptime:
+        example: 1h2m3s
+        type: string
+      version:
+        example: 1.0.0
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API for stations and radio link management.
+  title: API Stations and Radio Link
+  version: "1.0"
+paths:
+  /status:
+    get:
+      description: Returns the API status and verifies database connectivity.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/status.Report'
+        "503":
+          description: Service Unavailable
+          schema:
+            $ref: '#/definitions/status.Report'
+      summary: API status
+      tags:
+      - status
+schemes:
+- http
+- https
+swagger: "2.0"

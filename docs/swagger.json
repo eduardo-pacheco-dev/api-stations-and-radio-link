@@ -1,0 +1,106 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "API for stations and radio link management.",
+        "title": "API Stations and Radio Link",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api/v1",
+    "paths": {
+        "/status": {
+            "get": {
+                "description": "Returns the API status and verifies database connectivity.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "status"
+                ],
+                "summary": "API status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/status.Report"
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "$ref": "#/definitions/status.Report"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "status.Database": {
+            "type": "object",
+            "properties": {
+                "driver": {
+                    "type": "string",
+                    "example": "mysql"
+                },
+                "error": {
+                    "type": "string",
+                    "example": "database unreachable"
+                },
+                "latency_ms": {
+                    "type": "number",
+                    "example": 1.42
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "up",
+                        "down"
+                    ],
+                    "example": "up"
+                }
+            }
+        },
+        "status.Report": {
+            "type": "object",
+            "properties": {
+                "database": {
+                    "$ref": "#/definitions/status.Database"
+                },
+                "environment": {
+                    "type": "string",
+                    "example": "development"
+                },
+                "service": {
+                    "type": "string",
+                    "example": "api-stations-and-radio-link"
+                },
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "ok",
+                        "degraded"
+                    ],
+                    "example": "ok"
+                },
+                "timestamp": {
+                    "type": "string",
+                    "example": "2026-10-24T12:00:00Z"
+                },
+                "uptime": {
+                    "type": "string",
+                    "example": "1h2m3s"
+                },
+                "version": {
+                    "type": "string",
+                    "example": "1.0.0"
+                }
+            }
+        }
+    }
+}
