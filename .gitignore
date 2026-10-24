@@ -3,6 +3,7 @@
 
 # Build output
 bin/
+tmp/
 *.exe
 *.test
 

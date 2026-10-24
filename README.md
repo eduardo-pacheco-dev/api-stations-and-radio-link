@@ -112,6 +112,17 @@ Ou:
 make run
 ```
 
+### Hot reload com Air
+
+O projeto inclui `.air.toml` apontando para `./cmd/api`. Na raiz do projeto:
+
+```bash
+air
+```
+
+O binário é gerado em `tmp/` (ignorado pelo Git) e o servidor reinicia ao
+alterar arquivos `.go`.
+
 A API sobe em `http://localhost:8080`. Se o MySQL estiver indisponível, a API
 continua de pé e o endpoint de status responde `503` com estado `degraded`.
 
