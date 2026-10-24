@@ -379,10 +379,12 @@ O projeto tem dois workflows:
 
 ### Configuração do servidor
 
+Produção atual: `root@russian:~/app/api-stations-and-radio-link`.
+
 Pré-requisitos no servidor:
 
 - Go não é necessário no servidor; o binário é compilado no GitHub Actions.
-- Node.js + PM2 instalados para o usuário de deploy:
+- Node.js + PM2 instalados para o usuário `root`:
 
 ```bash
 npm install -g pm2
@@ -390,21 +392,24 @@ pm2 startup
 pm2 save
 ```
 
-- Diretório de deploy com permissão do usuário de deploy:
+- Diretório de deploy:
 
 ```bash
-sudo mkdir -p /opt/api-stations-and-radio-link/{incoming,releases,logs}
-sudo chown -R deploy:deploy /opt/api-stations-and-radio-link
+mkdir -p /root/app/api-stations-and-radio-link/{incoming,releases,logs}
 ```
 
-- Arquivo `/opt/api-stations-and-radio-link/.env` com as variáveis de produção
-  (use `.env.example` como base). O PM2 usa `cwd` nesse diretório e a aplicação
-  carrega o `.env` automaticamente.
-- Chave SSH do usuário de deploy cadastrada no GitHub.
+- Arquivo `/root/app/api-stations-and-radio-link/.env` com as variáveis de
+  produção (use `.env.example` como base). O PM2 usa `cwd` nesse diretório e a
+  aplicação carrega o `.env` automaticamente.
+- Chave SSH do usuário `root` cadastrada no GitHub.
+
+> `russian` precisa ser resolvido pelo runner do GitHub Actions. Se ele for
+> apenas um alias do seu `~/.ssh/config` local, cadastre em `DEPLOY_HOST` o IP
+> ou domínio real do servidor.
 
 O primeiro deploy cria a release, inicia o processo no PM2 e salva a lista de
-processos. Os logs ficam em `/opt/api-stations-and-radio-link/logs/` e o ponteiro
-da release ativa em `current_release`.
+processos. Os logs ficam em `/root/app/api-stations-and-radio-link/logs/` e o
+ponteiro da release ativa em `current_release`.
 
 Comandos úteis no servidor:
 
@@ -421,19 +426,21 @@ Configure em **Settings → Secrets and variables → Actions** (ou no environme
 
 | Secret | Obrigatório | Padrão | Descrição |
 | --- | --- | --- | --- |
-| `DEPLOY_HOST` | sim | — | IP ou domínio do servidor |
-| `DEPLOY_USER` | sim | — | Usuário SSH de deploy |
+| `DEPLOY_HOST` | não | `russian` | IP, domínio ou hostname resolvível pelo runner |
+| `DEPLOY_USER` | não | `root` | Usuário SSH de deploy |
 | `DEPLOY_SSH_KEY` | sim | — | Chave privada SSH |
 | `DEPLOY_KNOWN_HOSTS` | recomendado | `ssh-keyscan` | Saída de `ssh-keyscan -H host` |
 | `DEPLOY_PORT` | não | `22` | Porta SSH |
-| `DEPLOY_PATH` | não | `/opt/api-stations-and-radio-link` | Diretório de deploy |
+| `DEPLOY_PATH` | não | `/root/app/api-stations-and-radio-link` | Diretório de deploy |
 | `PM2_APP_NAME` | não | `api-stations-and-radio-link` | Nome do processo no PM2 |
 | `HEALTHCHECK_URL` | não | `http://127.0.0.1:8080/api/v1/status` | URL de healthcheck |
 
 Para gerar `DEPLOY_KNOWN_HOSTS`:
 
 ```bash
-ssh-keyscan -H seu-servidor.com
+ssh-keyscan -H russian
+# ou
+ssh-keyscan -H <ip-ou-dominio>
 ```
 
 ### Deploy manual
@@ -443,10 +450,10 @@ manualmente, envie o binário e o `deploy.sh` para `DEPLOY_PATH/incoming/` e
 execute:
 
 ```bash
-DEPLOY_DIR=/opt/api-stations-and-radio-link \
+DEPLOY_DIR=/root/app/api-stations-and-radio-link \
 PM2_APP_NAME=api-stations-and-radio-link \
-BIN_SOURCE=/opt/api-stations-and-radio-link/incoming/api \
-bash /opt/api-stations-and-radio-link/incoming/deploy.sh
+BIN_SOURCE=/root/app/api-stations-and-radio-link/incoming/api \
+bash /root/app/api-stations-and-radio-link/incoming/deploy.sh
 ```
 
 ## Próximos passos

@@ -23,10 +23,10 @@ jobs:
     environment: production
 
     env:
-      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
-      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST || 'russian' }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER || 'root' }}
       DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/api-stations-and-radio-link' }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/root/app/api-stations-and-radio-link' }}
       PM2_APP_NAME: ${{ secrets.PM2_APP_NAME || 'api-stations-and-radio-link' }}
       HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL || 'http://127.0.0.1:8080/api/v1/status' }}
 

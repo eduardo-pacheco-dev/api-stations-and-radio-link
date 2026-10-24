@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 APP_NAME="${APP_NAME:-api-stations-and-radio-link}"
 PM2_APP_NAME="${PM2_APP_NAME:-${SERVICE_NAME:-$APP_NAME}}"
-DEPLOY_DIR="${DEPLOY_DIR:-/opt/$APP_NAME}"
+DEPLOY_DIR="${DEPLOY_DIR:-/root/app/api-stations-and-radio-link}"
 BIN_SOURCE="${BIN_SOURCE:-$DEPLOY_DIR/incoming/api}"
 BINARY_NAME="${BINARY_NAME:-api}"
 HEALTHCHECK_URL="${HEALTHCHECK_URL-http://127.0.0.1:8080/api/v1/status}"

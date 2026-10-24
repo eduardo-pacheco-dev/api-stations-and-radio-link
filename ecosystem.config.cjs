@@ -1,6 +1,7 @@
 const path = require("node:path");
 
-const deployDir = process.env.DEPLOY_DIR || "/opt/api-stations-and-radio-link";
+const deployDir =
+  process.env.DEPLOY_DIR || "/root/app/api-stations-and-radio-link";
 const appName = process.env.PM2_APP_NAME || "api-stations-and-radio-link";
 
 module.exports = {
