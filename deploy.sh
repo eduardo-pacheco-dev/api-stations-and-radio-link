@@ -37,8 +37,39 @@ case "$HEALTHCHECK_RETRIES" in
 esac
 [ "$HEALTHCHECK_RETRIES" -gt 0 ] || die "HEALTHCHECK_RETRIES must be greater than zero"
 
+resolve_pm2() {
+  if [ -n "${PM2_BIN:-}" ]; then
+    [ -x "$PM2_BIN" ] || die "PM2_BIN is not executable: $PM2_BIN"
+    printf '%s\n' "$PM2_BIN"
+    return 0
+  fi
+
+  if command -v pm2 >/dev/null 2>&1; then
+    command -v pm2
+    return 0
+  fi
+
+  local candidate
+  for candidate in \
+    "$HOME/.nvm/versions/node"/*/bin/pm2 \
+    "$HOME/.local/bin/pm2" \
+    "$HOME/.npm-global/bin/pm2" \
+    "/usr/local/bin/pm2" \
+    "/usr/bin/pm2"; do
+    if [ -x "$candidate" ]; then
+      printf '%s\n' "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
+PM2_BIN="$(resolve_pm2)" || die "pm2 not found; set PM2_BIN=/absolute/path/to/pm2"
+export PATH="$(dirname "$PM2_BIN"):$PATH"
+log "using pm2 at $PM2_BIN"
+
 [ -f "$BIN_SOURCE" ] || die "binary not found: $BIN_SOURCE"
-command -v pm2 >/dev/null 2>&1 || die "pm2 not found in PATH"
 command -v curl >/dev/null 2>&1 || die "curl not found"
 
 if [ -e "$RELEASE_DIR" ]; then
@@ -66,13 +97,13 @@ activate_binary() {
 
 start_or_restart_pm2() {
   DEPLOY_DIR="$DEPLOY_DIR" PM2_APP_NAME="$PM2_APP_NAME" \
-    pm2 startOrReload "$ECOSYSTEM_FILE" --update-env
-  pm2 save || log "warning: pm2 save failed (process list not persisted)"
+    "$PM2_BIN" startOrReload "$ECOSYSTEM_FILE" --update-env
+  "$PM2_BIN" save || log "warning: pm2 save failed (process list not persisted)"
 }
 
 restart_pm2() {
-  pm2 restart "$PM2_APP_NAME" --update-env
-  pm2 save || log "warning: pm2 save failed (process list not persisted)"
+  "$PM2_BIN" restart "$PM2_APP_NAME" --update-env
+  "$PM2_BIN" save || log "warning: pm2 save failed (process list not persisted)"
 }
 
 wait_for_health() {
@@ -114,8 +145,8 @@ rollback() {
   else
     log "no previous release available; stopping PM2 app"
     rm -f "$CURRENT_FILE"
-    pm2 delete "$PM2_APP_NAME" >/dev/null 2>&1 || true
-    pm2 save >/dev/null 2>&1 || true
+    "$PM2_BIN" delete "$PM2_APP_NAME" >/dev/null 2>&1 || true
+    "$PM2_BIN" save >/dev/null 2>&1 || true
   fi
 
   if [ -d "$RELEASE_DIR" ] && [ "$RELEASE_DIR" != "$PREVIOUS_RELEASE" ]; then
