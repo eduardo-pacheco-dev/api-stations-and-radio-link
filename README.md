@@ -12,6 +12,8 @@ o banco de dados.
 - Swagger/OpenAPI via `swaggo/swag` + `http-swagger`
 - `database/sql` com driver MySQL
 - `log/slog` para logs estruturados
+- PM2 em produção
+- GitHub Actions para CI/CD
 
 ## Estrutura
 
@@ -27,6 +29,9 @@ o banco de dados.
 │   ├── config/                             # configuração via variáveis de ambiente
 │   └── status/                             # caso de uso + portas + read model
 ├── docker-compose.yml                      # MySQL local (root/admin)
+├── deploy.sh                               # deploy atômico com PM2, healthcheck e rollback
+├── ecosystem.config.cjs                    # configuração do PM2
+├── .github/workflows/                      # CI e deploy automático
 ├── Makefile
 └── .env.example
 ```
@@ -246,10 +251,102 @@ Todas as variáveis estão documentadas em `.env.example`. As principais:
 | `DB_NAME` | `api_stations_radio_link` | Nome do banco |
 | `DB_PING_TIMEOUT` | `2s` | Timeout do ping de status |
 
+## CI/CD e deploy com PM2
+
+O projeto tem dois workflows:
+
+- `.github/workflows/ci.yml`: roda em `push`/`pull_request` para `main`, executa
+  `gofmt`, `go vet`, valida o Swagger, roda testes unitários e de integração com
+  MySQL e gera o binário Linux.
+- `.github/workflows/deploy.yml`: roda automaticamente após o CI concluir com
+  sucesso em `main` (ou manualmente via **Run workflow**). Ele compila o binário
+  Linux, envia para o servidor via SSH e executa `deploy.sh`.
+
+### Como o `deploy.sh` funciona
+
+1. Copia o binário para `releases/<release-id>/`.
+2. Atualiza o ponteiro `current_release` e o binário estável usado pelo PM2.
+3. Executa `pm2 startOrReload ecosystem.config.cjs --update-env` e `pm2 save`.
+4. Valida `GET /api/v1/status` (aceita qualquer HTTP < 500; um `503` pode
+   significar apenas banco indisponível).
+5. Em caso de falha, faz rollback para a release anterior.
+6. Mantém as 5 releases mais recentes (`KEEP_RELEASES`).
+
+### Configuração do servidor
+
+Pré-requisitos no servidor:
+
+- Go não é necessário no servidor; o binário é compilado no GitHub Actions.
+- Node.js + PM2 instalados para o usuário de deploy:
+
+```bash
+npm install -g pm2
+pm2 startup
+pm2 save
+```
+
+- Diretório de deploy com permissão do usuário de deploy:
+
+```bash
+sudo mkdir -p /opt/api-stations-and-radio-link/{incoming,releases,logs}
+sudo chown -R deploy:deploy /opt/api-stations-and-radio-link
+```
+
+- Arquivo `/opt/api-stations-and-radio-link/.env` com as variáveis de produção
+  (use `.env.example` como base). O PM2 usa `cwd` nesse diretório e a aplicação
+  carrega o `.env` automaticamente.
+- Chave SSH do usuário de deploy cadastrada no GitHub.
+
+O primeiro deploy cria a release, inicia o processo no PM2 e salva a lista de
+processos. Os logs ficam em `/opt/api-stations-and-radio-link/logs/` e o ponteiro
+da release ativa em `current_release`.
+
+Comandos úteis no servidor:
+
+```bash
+pm2 status
+pm2 logs api-stations-and-radio-link
+pm2 restart api-stations-and-radio-link
+```
+
+### Secrets do GitHub
+
+Configure em **Settings → Secrets and variables → Actions** (ou no environment
+`production`):
+
+| Secret | Obrigatório | Padrão | Descrição |
+| --- | --- | --- | --- |
+| `DEPLOY_HOST` | sim | — | IP ou domínio do servidor |
+| `DEPLOY_USER` | sim | — | Usuário SSH de deploy |
+| `DEPLOY_SSH_KEY` | sim | — | Chave privada SSH |
+| `DEPLOY_KNOWN_HOSTS` | recomendado | `ssh-keyscan` | Saída de `ssh-keyscan -H host` |
+| `DEPLOY_PORT` | não | `22` | Porta SSH |
+| `DEPLOY_PATH` | não | `/opt/api-stations-and-radio-link` | Diretório de deploy |
+| `PM2_APP_NAME` | não | `api-stations-and-radio-link` | Nome do processo no PM2 |
+| `HEALTHCHECK_URL` | não | `http://127.0.0.1:8080/api/v1/status` | URL de healthcheck |
+
+Para gerar `DEPLOY_KNOWN_HOSTS`:
+
+```bash
+ssh-keyscan -H seu-servidor.com
+```
+
+### Deploy manual
+
+O script é executado no servidor (o workflow já faz esse passo). Para rodar
+manualmente, envie o binário e o `deploy.sh` para `DEPLOY_PATH/incoming/` e
+execute:
+
+```bash
+DEPLOY_DIR=/opt/api-stations-and-radio-link \
+PM2_APP_NAME=api-stations-and-radio-link \
+BIN_SOURCE=/opt/api-stations-and-radio-link/incoming/api \
+bash /opt/api-stations-and-radio-link/incoming/deploy.sh
+```
+
 ## Próximos passos
 
 - Endpoints de estações e enlace de rádio
 - Migrations versionadas
 - Autenticação/autorização
 - Health check separado de readiness/liveness
-- CI com `go test -race` e `go test -tags=integration`

@@ -1,0 +1,103 @@
+name: Deploy
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      DEPLOY_PORT: ${{ secrets.DEPLOY_PORT || '22' }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/opt/api-stations-and-radio-link' }}
+      PM2_APP_NAME: ${{ secrets.PM2_APP_NAME || 'api-stations-and-radio-link' }}
+      HEALTHCHECK_URL: ${{ secrets.HEALTHCHECK_URL || 'http://127.0.0.1:8080/api/v1/status' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build Linux binary
+        run: |
+          mkdir -p bin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -trimpath -ldflags="-s -w" -o bin/api ./cmd/api
+
+      - name: Validate deploy configuration
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          : "${DEPLOY_HOST:?missing DEPLOY_HOST secret}"
+          : "${DEPLOY_USER:?missing DEPLOY_USER secret}"
+          : "${DEPLOY_SSH_KEY:?missing DEPLOY_SSH_KEY secret}"
+          test -f bin/api
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          if [ -n "$DEPLOY_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          else
+            ssh-keyscan -p "$DEPLOY_PORT" -H "$DEPLOY_HOST" > ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload release
+        run: |
+          SSH_OPTS=(
+            -i "$HOME/.ssh/deploy_key"
+            -o StrictHostKeyChecking=yes
+            -o UserKnownHostsFile="$HOME/.ssh/known_hosts"
+            -o ConnectTimeout=15
+          )
+
+          ssh -p "$DEPLOY_PORT" "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "mkdir -p '$DEPLOY_PATH/incoming'"
+
+          scp -P "$DEPLOY_PORT" "${SSH_OPTS[@]}" \
+            bin/api deploy.sh ecosystem.config.cjs \
+            "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/incoming/"
+
+          ssh -p "$DEPLOY_PORT" "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "chmod +x '$DEPLOY_PATH/incoming/deploy.sh'"
+
+          RELEASE_ID="$(git rev-parse --short=12 HEAD)"
+
+          ssh -p "$DEPLOY_PORT" "${SSH_OPTS[@]}" "$DEPLOY_USER@$DEPLOY_HOST" \
+            "RELEASE_ID='$RELEASE_ID' \
+             DEPLOY_DIR='$DEPLOY_PATH' \
+             PM2_APP_NAME='$PM2_APP_NAME' \
+             HEALTHCHECK_URL='$HEALTHCHECK_URL' \
+             BIN_SOURCE='$DEPLOY_PATH/incoming/api' \
+             bash '$DEPLOY_PATH/incoming/deploy.sh'"

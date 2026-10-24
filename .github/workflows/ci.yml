@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test, lint and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: admin
+          MYSQL_DATABASE: api_stations_radio_link
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -padmin"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    env:
+      TEST_DB_DSN: root:admin@tcp(127.0.0.1:3306)/api_stations_radio_link?parseTime=true&charset=utf8mb4
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Check formatting
+        run: |
+          files="$(gofmt -l cmd internal docs)"
+          if [ -n "$files" ]; then
+            echo "The following files are not formatted:"
+            echo "$files"
+            exit 1
+          fi
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Check Swagger is up to date
+        run: |
+          go run github.com/swaggo/swag/cmd/swag@v1.16.6 init \
+            -g cmd/api/main.go -o docs --parseInternal
+          git diff --exit-code -- docs
+
+      - name: Unit tests
+        run: go test -race ./...
+
+      - name: Integration tests
+        run: go test -race -tags=integration ./...
+
+      - name: Build Linux binary
+        run: |
+          mkdir -p bin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -trimpath -ldflags="-s -w" -o bin/api ./cmd/api
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-linux-amd64
+          path: bin/api
+          if-no-files-found: error
+          retention-days: 7
