@@ -70,7 +70,6 @@ export PATH="$(dirname "$PM2_BIN"):$PATH"
 log "using pm2 at $PM2_BIN"
 
 [ -f "$BIN_SOURCE" ] || die "binary not found: $BIN_SOURCE"
-command -v curl >/dev/null 2>&1 || die "curl not found"
 
 if [ -e "$RELEASE_DIR" ]; then
   die "release already exists: $RELEASE_DIR"
@@ -106,6 +105,50 @@ restart_pm2() {
   "$PM2_BIN" save || log "warning: pm2 save failed (process list not persisted)"
 }
 
+http_status() {
+  local url="$1" code="" rest authority path host port
+
+  if command -v curl >/dev/null 2>&1; then
+    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" 2>/dev/null || true)"
+    printf '%s' "${code:-000}"
+    return 0
+  fi
+
+  if command -v wget >/dev/null 2>&1; then
+    code="$(wget -q -S -O /dev/null --timeout=5 "$url" 2>&1 | awk '/HTTP\// {print $2; exit}')"
+    if [ -n "$code" ]; then
+      printf '%s' "$code"
+      return 0
+    fi
+  fi
+
+  # Last resort for plain HTTP: speak HTTP/1.0 over bash's /dev/tcp.
+  if [ "${url#http://}" != "$url" ]; then
+    rest="${url#http://}"
+    authority="${rest%%/*}"
+    if [ "$rest" = "$authority" ]; then
+      path="/"
+    else
+      path="/${rest#*/}"
+    fi
+    host="${authority%%:*}"
+    port="${authority##*:}"
+    if [ "$port" = "$authority" ]; then
+      port="80"
+    fi
+
+    if exec 3<>"/dev/tcp/$host/$port" 2>/dev/null; then
+      printf 'GET %s HTTP/1.0\r\nHost: %s\r\nConnection: close\r\n\r\n' "$path" "$host" >&3
+      IFS=' ' read -r -t 5 _ code _ <&3 || true
+      exec 3<&- 2>/dev/null || true
+      printf '%s' "${code:-000}"
+      return 0
+    fi
+  fi
+
+  printf '000'
+}
+
 wait_for_health() {
   local attempt code
 
@@ -115,7 +158,7 @@ wait_for_health() {
   fi
 
   for attempt in $(seq 1 "$HEALTHCHECK_RETRIES"); do
-    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$HEALTHCHECK_URL" || true)"
+    code="$(http_status "$HEALTHCHECK_URL")"
 
     # Any HTTP response below 500 means the process is accepting requests.
     # A 503 from /status is accepted because it can mean only the database is down.
