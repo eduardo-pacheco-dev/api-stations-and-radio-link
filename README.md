@@ -23,11 +23,16 @@ o banco de dados.
 ├── docs/                                   # documentação Swagger gerada
 ├── internal/
 │   ├── adapter/
-│   │   ├── database/                       # abertura e pool do database/sql
-│   │   ├── httpapi/                        # rotas, handler, middleware
-│   │   └── sqlpinger/                      # adapter concreto de ping no banco
+│   │   ├── database/                       # abertura, pool, migrações
+│   │   ├── httpapi/                        # rotas, handlers, middleware
+│   │   ├── sqlpinger/                      # adapter de ping no banco
+│   │   └── stationmysql/                   # repositório MySQL de stations
 │   ├── config/                             # configuração via variáveis de ambiente
+│   ├── station/                            # domínio, casos de uso e porta Repository
 │   └── status/                             # caso de uso + portas + read model
+├── scripts/
+│   ├── init.sql                            # cria o banco local
+│   └── seed.sql                            # estação de exemplo
 ├── docker-compose.yml                      # MySQL local (root/admin)
 ├── deploy.sh                               # deploy atômico com PM2, healthcheck e rollback
 ├── ecosystem.config.cjs                    # configuração do PM2
@@ -171,6 +176,106 @@ Banco indisponível (`503 Service Unavailable`):
 }
 ```
 
+## Stations
+
+CRUD em `/api/v1/stations`. O identificador do recurso é o `site_id`.
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `POST` | `/api/v1/stations` | Cria uma estação |
+| `GET` | `/api/v1/stations` | Lista com paginação e busca |
+| `GET` | `/api/v1/stations/{siteID}` | Busca por `site_id` |
+| `PUT` | `/api/v1/stations/{siteID}` | Substitui os dados da estação |
+| `DELETE` | `/api/v1/stations/{siteID}` | Remove a estação |
+
+A listagem aceita `page` (padrão `1`), `page_size` (padrão `20`, máximo `100`)
+e `search` (busca em `site_id`, `end_id`, `station_id`, `city` e `address`).
+
+O `PUT` substitui todos os campos mutáveis; campos omitidos são gravados como
+vazios/nulos. O `site_id` é imutável e deve ser igual ao da rota.
+
+### Exemplo de criação
+
+```bash
+curl -X POST http://localhost:8080/api/v1/stations \
+  -H "Content-Type: application/json" \
+  -d '{
+    "site_id": "TSHG01",
+    "technology": "GSM",
+    "end_id": "GOTSH_0001",
+    "contract_area_type": "Compartilhado",
+    "area_holder": "AMERICAN TOWER",
+    "infrastructure_type": "Greenfield",
+    "ev_type": "TORRE METALICA TRIANGULAR",
+    "address": "FAZENDA MUNDO NOVO, S/N, ZONA RURAL, TRES RANCHOS",
+    "neighborhood": "ZONA RURAL",
+    "city": "TRES RANCHOS",
+    "state": "GO",
+    "zip_code": "75720000",
+    "regional": "TCO",
+    "latitude": -18.345528,
+    "longitude": -47.772028,
+    "status": "Aquisitado",
+    "tower_type": "",
+    "nominal_aev": "",
+    "station_id": "TRH001TM",
+    "ev_supplier": "BRASILSAT",
+    "land_area": 10,
+    "structure_height": 50,
+    "observation": "VENDIDO GENESIS - 1º CLOSING"
+  }'
+```
+
+### Mapeamento dos campos
+
+| Origem | API |
+| --- | --- |
+| `SITE ID` | `site_id` |
+| `TECNOLOGIA` | `technology` |
+| `END ID` | `end_id` |
+| `TIPO_DE_CONTRATO_AREA` | `contract_area_type` |
+| `DETENTOR_AREA` | `area_holder` |
+| `TIPO_DE_INFRA` | `infrastructure_type` |
+| `TIPO_DE_EV` | `ev_type` |
+| `ENDERECO` | `address` |
+| `BAIRRO` | `neighborhood` |
+| `MUNICIPIO` | `city` |
+| `ESTADO` | `state` |
+| `CEP` | `zip_code` |
+| `REGIONAL` | `regional` |
+| `LATITUDE` | `latitude` |
+| `LONGITUDE` | `longitude` |
+| `STATUS` | `status` |
+| `TIPO_DA_TORRE` | `tower_type` |
+| `AEV_NOMINAL` | `nominal_aev` |
+| `STATION_ID` | `station_id` |
+| `FORNECEDOR_DE_EV` | `ev_supplier` |
+| `AREA_DO_SOLO` | `land_area` |
+| `ALTURA_DA_ESTRUTURA` | `structure_height` |
+| `OBSERVACAO_THQ` | `observation` |
+
+As coordenadas são números decimais na API: `-18,345528` vira `-18.345528`.
+
+## Migrações e seed
+
+As migrações são embutidas no binário e aplicadas automaticamente ao iniciar a
+API. Para executar manualmente:
+
+```bash
+make migrate
+# ou
+go run ./cmd/migrate
+```
+
+O seed com a estação de exemplo fica em `scripts/seed.sql` e é idempotente:
+
+```bash
+make seed
+```
+
+O target `make seed` requer o cliente `mysql` instalado. Sem ele, use o endpoint
+`POST /api/v1/stations` com o JSON de exemplo.
+
 ## Swagger
 
 Depois de subir a API:
@@ -204,19 +309,16 @@ Os testes de integração usam `TEST_DB_DSN` quando definido. Caso contrário,
 tentam `root:admin@tcp(127.0.0.1:3306)/api_stations_radio_link` e são ignorados
 (`skip`) se o MySQL não estiver disponível.
 
-## Banco de dados desacoplado
+## Banco de dados e adapters
 
-O core da aplicação não conhece MySQL. Ele depende da porta:
+O domínio e os casos de uso não conhecem MySQL.
 
-```go
-type DatabasePinger interface {
-    Ping(ctx context.Context) error
-    Driver() string
-}
-```
+- **Status:** usa a porta `DatabasePinger`; o adapter `sqlpinger` funciona com
+  qualquer driver de `database/sql`.
+- **Stations:** usa a porta `station.Repository`; o adapter `stationmysql`
+  implementa o SQL e as migrações específicas de MySQL.
 
-O adapter `internal/adapter/sqlpinger` implementa essa porta sobre qualquer
-driver de `database/sql`. Para trocar de banco:
+Para trocar de banco:
 
 1. Registre o novo driver no composition root (`cmd/api/main.go`):
 
@@ -230,6 +332,9 @@ import _ "github.com/jackc/pgx/v5/stdlib"
 DB_DRIVER=pgx
 DB_DSN=postgres://user:password@localhost:5432/stations?sslmode=disable
 ```
+
+3. Implemente um novo adapter para `station.Repository` com o dialeto e as
+   migrações do novo banco, e conecte-o no `main`.
 
 Nenhuma camada de domínio, caso de uso ou HTTP precisa mudar.
 
@@ -346,7 +451,8 @@ bash /opt/api-stations-and-radio-link/incoming/deploy.sh
 
 ## Próximos passos
 
-- Endpoints de estações e enlace de rádio
-- Migrations versionadas
+- Endpoints de enlace de rádio
+- `PATCH` para atualização parcial de stations
+- Filtros por estado, status e tecnologia
 - Autenticação/autorização
 - Health check separado de readiness/liveness

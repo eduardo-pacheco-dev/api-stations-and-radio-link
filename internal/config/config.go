@@ -62,7 +62,7 @@ const (
 	defaultDBPort         = "3306"
 	defaultDBUser         = "root"
 	defaultDBPassword     = "admin"
-	mysqlDSNPlaceholder   = "%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci"
+	mysqlDSNPlaceholder   = "%s:%s@tcp(%s:%s)/%s?parseTime=true&charset=utf8mb4&collation=utf8mb4_unicode_ci&timeout=5s"
 	defaultReadHeaderTime = 5 * time.Second
 	defaultReadTimeout    = 10 * time.Second
 	defaultWriteTimeout   = 15 * time.Second

@@ -15,6 +15,241 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/stations": {
+            "get": {
+                "description": "Returns a paginated list of stations.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stations"
+                ],
+                "summary": "List stations",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size (max 100)",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by site_id, end_id, station_id, city or address",
+                        "name": "search",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/station.Page"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a station. The site_id must be unique.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stations"
+                ],
+                "summary": "Create station",
+                "parameters": [
+                    {
+                        "description": "Station data",
+                        "name": "station",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/station.StationData"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/station.Station"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stations/{siteID}": {
+            "get": {
+                "description": "Returns a station by site_id.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stations"
+                ],
+                "summary": "Get station",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Station site_id",
+                        "name": "siteID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/station.Station"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates a station by site_id. The site_id cannot be changed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stations"
+                ],
+                "summary": "Update station",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Station site_id",
+                        "name": "siteID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Station data",
+                        "name": "station",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/station.StationData"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/station.Station"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a station by site_id.",
+                "tags": [
+                    "stations"
+                ],
+                "summary": "Delete station",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Station site_id",
+                        "name": "siteID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/status": {
             "get": {
                 "description": "Returns the API status and verifies database connectivity.",
@@ -43,6 +278,248 @@ const docTemplate = `{
         }
     },
     "definitions": {
+        "httpapi.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string",
+                    "example": "internal_server_error"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "unexpected internal error"
+                }
+            }
+        },
+        "station.Page": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/station.Station"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total_pages": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "station.Station": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "example": "FAZENDA MUNDO NOVO, S/N, ZONA RURAL, TRES RANCHOS"
+                },
+                "area_holder": {
+                    "type": "string",
+                    "example": "AMERICAN TOWER"
+                },
+                "city": {
+                    "type": "string",
+                    "example": "TRES RANCHOS"
+                },
+                "contract_area_type": {
+                    "type": "string",
+                    "example": "Compartilhado"
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-10-24T12:00:00Z"
+                },
+                "end_id": {
+                    "type": "string",
+                    "example": "GOTSH_0001"
+                },
+                "ev_supplier": {
+                    "type": "string",
+                    "example": "BRASILSAT"
+                },
+                "ev_type": {
+                    "type": "string",
+                    "example": "TORRE METALICA TRIANGULAR"
+                },
+                "infrastructure_type": {
+                    "type": "string",
+                    "example": "Greenfield"
+                },
+                "land_area": {
+                    "type": "number",
+                    "example": 10
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": -18.345528
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": -47.772028
+                },
+                "neighborhood": {
+                    "type": "string",
+                    "example": "ZONA RURAL"
+                },
+                "nominal_aev": {
+                    "type": "string",
+                    "example": "10"
+                },
+                "observation": {
+                    "type": "string",
+                    "example": "VENDIDO GENESIS - 1º CLOSING"
+                },
+                "regional": {
+                    "type": "string",
+                    "example": "TCO"
+                },
+                "site_id": {
+                    "type": "string",
+                    "example": "TSHG01"
+                },
+                "state": {
+                    "type": "string",
+                    "example": "GO"
+                },
+                "station_id": {
+                    "type": "string",
+                    "example": "TRH001TM"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Aquisitado"
+                },
+                "structure_height": {
+                    "type": "number",
+                    "example": 50
+                },
+                "technology": {
+                    "type": "string",
+                    "example": "GSM"
+                },
+                "tower_type": {
+                    "type": "string",
+                    "example": "TORRE METALICA TRIANGULAR"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2026-10-24T12:00:00Z"
+                },
+                "zip_code": {
+                    "type": "string",
+                    "example": "75720000"
+                }
+            }
+        },
+        "station.StationData": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string",
+                    "example": "FAZENDA MUNDO NOVO, S/N, ZONA RURAL, TRES RANCHOS"
+                },
+                "area_holder": {
+                    "type": "string",
+                    "example": "AMERICAN TOWER"
+                },
+                "city": {
+                    "type": "string",
+                    "example": "TRES RANCHOS"
+                },
+                "contract_area_type": {
+                    "type": "string",
+                    "example": "Compartilhado"
+                },
+                "end_id": {
+                    "type": "string",
+                    "example": "GOTSH_0001"
+                },
+                "ev_supplier": {
+                    "type": "string",
+                    "example": "BRASILSAT"
+                },
+                "ev_type": {
+                    "type": "string",
+                    "example": "TORRE METALICA TRIANGULAR"
+                },
+                "infrastructure_type": {
+                    "type": "string",
+                    "example": "Greenfield"
+                },
+                "land_area": {
+                    "type": "number",
+                    "example": 10
+                },
+                "latitude": {
+                    "type": "number",
+                    "example": -18.345528
+                },
+                "longitude": {
+                    "type": "number",
+                    "example": -47.772028
+                },
+                "neighborhood": {
+                    "type": "string",
+                    "example": "ZONA RURAL"
+                },
+                "nominal_aev": {
+                    "type": "string",
+                    "example": "10"
+                },
+                "observation": {
+                    "type": "string",
+                    "example": "VENDIDO GENESIS - 1º CLOSING"
+                },
+                "regional": {
+                    "type": "string",
+                    "example": "TCO"
+                },
+                "site_id": {
+                    "type": "string",
+                    "example": "TSHG01"
+                },
+                "state": {
+                    "type": "string",
+                    "example": "GO"
+                },
+                "station_id": {
+                    "type": "string",
+                    "example": "TRH001TM"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Aquisitado"
+                },
+                "structure_height": {
+                    "type": "number",
+                    "example": 50
+                },
+                "technology": {
+                    "type": "string",
+                    "example": "GSM"
+                },
+                "tower_type": {
+                    "type": "string",
+                    "example": "TORRE METALICA TRIANGULAR"
+                },
+                "zip_code": {
+                    "type": "string",
+                    "example": "75720000"
+                }
+            }
+        },
         "status.Database": {
             "type": "object",
             "properties": {

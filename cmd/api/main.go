@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
@@ -19,7 +20,9 @@ import (
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/httpapi"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqlpinger"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/stationmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/config"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/status"
 )
 
@@ -57,6 +60,12 @@ func run() error {
 		}
 	}()
 
+	migrationCtx, cancelMigration := context.WithTimeout(context.Background(), 15*time.Second)
+	if err := database.Migrate(migrationCtx, db); err != nil {
+		logger.Error("database migration failed", "error", err)
+	}
+	cancelMigration()
+
 	statusService := status.NewService(status.ServiceConfig{
 		Name:        cfg.App.Name,
 		Version:     cfg.App.Version,
@@ -64,12 +73,17 @@ func run() error {
 		PingTimeout: cfg.Database.PingTimeout,
 	}, sqlpinger.New(db, cfg.Database.Driver))
 
+	stationRepository := stationmysql.NewRepository(db)
+	stationService := station.NewService(stationRepository)
+	stationHandler := httpapi.NewStationHandler(stationService, logger)
+
 	statusHandler := httpapi.NewStatusHandler(statusService, logger)
-	router := httpapi.NewRouter(
-		statusHandler,
-		httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")),
-		logger,
-	)
+	router := httpapi.NewRouter(httpapi.RouterConfig{
+		StatusHandler:  statusHandler,
+		StationHandler: stationHandler,
+		SwaggerHandler: httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")),
+		Logger:         logger,
+	})
 
 	docs.SwaggerInfo.Host = cfg.HTTP.SwaggerHost
 

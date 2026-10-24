@@ -6,13 +6,30 @@ import (
 	"time"
 )
 
-// NewRouter wires the HTTP routes and middleware.
-func NewRouter(statusHandler http.Handler, swaggerHandler http.Handler, logger *slog.Logger) http.Handler {
-	mux := http.NewServeMux()
-	mux.Handle("GET /api/v1/status", statusHandler)
+// RouterConfig contains the HTTP handlers wired into the router.
+type RouterConfig struct {
+	StatusHandler  http.Handler
+	StationHandler *StationHandler
+	SwaggerHandler http.Handler
+	Logger         *slog.Logger
+}
 
-	if swaggerHandler != nil {
-		mux.Handle("GET /swagger/", swaggerHandler)
+// NewRouter wires the HTTP routes and middleware.
+func NewRouter(cfg RouterConfig) http.Handler {
+	logger := cfg.Logger
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	mux := http.NewServeMux()
+	mux.Handle("GET /api/v1/status", cfg.StatusHandler)
+
+	if cfg.StationHandler != nil {
+		cfg.StationHandler.Register(mux)
+	}
+
+	if cfg.SwaggerHandler != nil {
+		mux.Handle("GET /swagger/", cfg.SwaggerHandler)
 	}
 
 	var handler http.Handler = mux

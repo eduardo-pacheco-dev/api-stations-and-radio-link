@@ -1,4 +1,4 @@
-.PHONY: run build fmt vet test test-race test-integration cover swagger up down logs clean
+.PHONY: run build fmt vet test test-race test-integration cover swagger migrate seed up down logs clean
 
 run:
 	go run ./cmd/api
@@ -27,6 +27,12 @@ cover:
 
 swagger:
 	go run github.com/swaggo/swag/cmd/swag@v1.16.6 init -g cmd/api/main.go -o docs --parseInternal
+
+migrate:
+	go run ./cmd/migrate
+
+seed:
+	mysql -h 127.0.0.1 -P 3306 -uroot -padmin api_stations_radio_link < scripts/seed.sql
 
 up:
 	docker compose up -d mysql
