@@ -19,23 +19,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
 
-    services:
-      mysql:
-        image: mysql:8.4
-        env:
-          MYSQL_ROOT_PASSWORD: admin
-          MYSQL_DATABASE: api_stations_radio_link
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -padmin"
-          --health-interval=5s
-          --health-timeout=5s
-          --health-retries=30
-
-    env:
-      TEST_DB_DSN: root:admin@tcp(127.0.0.1:3306)/api_stations_radio_link?parseTime=true&charset=utf8mb4
-
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -67,11 +50,8 @@ jobs:
             -g cmd/api/main.go -o docs --parseInternal
           git diff --exit-code -- docs
 
-      - name: Unit tests
+      - name: Tests (SQLite)
         run: go test -race ./...
-
-      - name: Integration tests
-        run: go test -race -tags=integration ./...
 
       - name: Build Linux binary
         run: |

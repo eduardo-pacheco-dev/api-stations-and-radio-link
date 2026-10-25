@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/spreadsheet"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
 )
 
@@ -18,6 +20,7 @@ type RadioLinkService interface {
 	List(ctx context.Context, filter radiolink.ListFilter) (radiolink.Page, error)
 	Update(ctx context.Context, linkID string, data radiolink.RadioLinkData) (radiolink.RadioLink, error)
 	Delete(ctx context.Context, linkID string) error
+	Import(ctx context.Context, rows []radiolink.ImportRow, options radiolink.ImportOptions) (radiolink.ImportResult, error)
 }
 
 // RadioLinkHandler serves the radio link CRUD endpoints.
@@ -34,6 +37,7 @@ func NewRadioLinkHandler(service RadioLinkService, logger *slog.Logger) *RadioLi
 // Register adds the radio link routes to the mux.
 func (h *RadioLinkHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/radio-links", h.Create)
+	mux.HandleFunc("POST /api/v1/radio-links/import", h.Import)
 	mux.HandleFunc("GET /api/v1/radio-links", h.List)
 	mux.HandleFunc("GET /api/v1/radio-links/{linkID}", h.Get)
 	mux.HandleFunc("PUT /api/v1/radio-links/{linkID}", h.Update)
@@ -69,6 +73,65 @@ func (h *RadioLinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Location", "/api/v1/radio-links/"+url.PathEscape(created.LinkID))
 	writeJSON(w, http.StatusCreated, created, h.logger)
+}
+
+// Import godoc
+//
+//	@Summary		Import radio links from Excel
+//	@Description	Imports radio links from the first sheet of an .xlsx file. Invalid rows are reported individually.
+//	@Tags			radio-links
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Param			file	formData	file	true	"Excel .xlsx file"
+//	@Param			mode	query		string	false	"insert or upsert"	Enums(insert,upsert)	default(insert)
+//	@Param			dry_run	query		bool	false	"Validate without writing"	default(false)
+//	@Success		200		{object}	radiolink.ImportResult
+//	@Failure		400		{object}	httpapi.ErrorResponse
+//	@Failure		413		{object}	httpapi.ErrorResponse
+//	@Failure		500		{object}	httpapi.ErrorResponse
+//	@Router			/radio-links/import [post]
+func (h *RadioLinkHandler) Import(w http.ResponseWriter, r *http.Request) {
+	mode, dryRun, err := parseImportOptions(r)
+	if err != nil {
+		writeRequestError(w, h.logger, err)
+		return
+	}
+
+	file, cleanup, err := openImportFile(w, r)
+	if err != nil {
+		writeRequestError(w, h.logger, err)
+		return
+	}
+	defer cleanup()
+
+	parsed, err := spreadsheet.ParseRadioLinks(file)
+	if err != nil {
+		writeRequestError(w, h.logger, newRequestError(http.StatusBadRequest, "invalid excel file: %v", err))
+		return
+	}
+
+	result, err := h.service.Import(r.Context(), parsed.Rows, radiolink.ImportOptions{
+		Mode:   radiolink.ImportMode(mode),
+		DryRun: dryRun,
+	})
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	result.Total = parsed.Total
+	for _, issue := range parsed.Issues {
+		result.Errors = append(result.Errors, radiolink.ImportError{
+			Row:     issue.Row,
+			Message: issue.Message,
+		})
+	}
+	result.Failed = len(result.Errors)
+	sort.SliceStable(result.Errors, func(i, j int) bool {
+		return result.Errors[i].Row < result.Errors[j].Row
+	})
+
+	writeJSON(w, http.StatusOK, result, h.logger)
 }
 
 // List godoc

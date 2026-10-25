@@ -1,4 +1,4 @@
-.PHONY: run build fmt vet test test-race test-integration cover swagger migrate seed up down logs clean
+.PHONY: run build fmt vet test test-race cover swagger migrate seed up down logs clean
 
 run:
 	go run ./cmd/api
@@ -17,9 +17,6 @@ test:
 
 test-race:
 	go test -race ./...
-
-test-integration:
-	go test -tags=integration ./...
 
 cover:
 	go test -coverprofile=coverage.out ./...

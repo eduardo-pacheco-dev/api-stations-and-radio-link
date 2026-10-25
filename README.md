@@ -11,6 +11,7 @@ o banco de dados.
 - MySQL 8.4
 - Swagger/OpenAPI via `swaggo/swag` + `http-swagger`
 - `database/sql` com driver MySQL
+- SQLite em memória para testes
 - `log/slog` para logs estruturados
 - PM2 em produção
 - GitHub Actions para CI/CD
@@ -26,12 +27,16 @@ o banco de dados.
 │   │   ├── database/                       # abertura, pool, migrações
 │   │   ├── httpapi/                        # rotas, handlers, middleware
 │   │   ├── radiolinkmysql/                 # repositório MySQL de radio links
+│   │   ├── spreadsheet/                    # parser de importação Excel
+│   │   ├── sqlerr/                         # classificação de erros SQL
 │   │   ├── sqlpinger/                      # adapter de ping no banco
+│   │   ├── sqltime/                        # scan de timestamps MySQL/SQLite
 │   │   └── stationmysql/                   # repositório MySQL de stations
 │   ├── config/                             # configuração via variáveis de ambiente
 │   ├── radiolink/                          # domínio, casos de uso e porta Repository
 │   ├── station/                            # domínio, casos de uso e porta Repository
-│   └── status/                             # caso de uso + portas + read model
+│   ├── status/                             # caso de uso + portas + read model
+│   └── testutil/sqlitedb/                  # SQLite em memória para testes
 ├── scripts/
 │   ├── init.sql                            # cria o banco local
 │   ├── seed.sql                            # stations de exemplo
@@ -323,6 +328,78 @@ curl -X POST http://localhost:8080/api/v1/radio-links \
   }'
 ```
 
+## Importação em massa (Excel)
+
+Dois endpoints aceitam arquivos `.xlsx` (primeira aba):
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `POST` | `/api/v1/stations/import` | Importa stations |
+| `POST` | `/api/v1/radio-links/import` | Importa radio links |
+
+Parâmetros:
+
+- `file` (multipart/form-data): arquivo `.xlsx`, máximo 10 MiB
+- `mode`: `insert` (padrão) ou `upsert`
+- `dry_run`: `true` valida sem gravar
+
+Exemplo:
+
+```bash
+curl -X POST "http://localhost:8080/api/v1/stations/import?mode=upsert" \
+  -F "file=@stations.xlsx"
+```
+
+Resposta:
+
+```json
+{
+  "total": 100,
+  "valid": 95,
+  "imported": 90,
+  "updated": 5,
+  "failed": 5,
+  "dry_run": false,
+  "errors": [
+    {
+      "row": 12,
+      "site_id": "TSHG12",
+      "message": "state must be a valid Brazilian UF"
+    }
+  ]
+}
+```
+
+Linhas válidas são importadas mesmo quando outras falham. O número da linha
+corresponde à linha real da planilha.
+
+### Colunas de stations
+
+Aceita os nomes originais (`SITE ID`, `TECNOLOGIA`, `MUNICIPIO`, etc.) e os
+nomes da API (`site_id`, `technology`, `city`, etc.):
+
+```text
+SITE ID, TECNOLOGIA, END ID, TIPO_DE_CONTRATO_AREA, DETENTOR_AREA,
+TIPO_DE_INFRA, TIPO_DE_EV, ENDERECO, BAIRRO, MUNICIPIO, ESTADO, CEP,
+REGIONAL, LATITUDE, LONGITUDE, STATUS, TIPO_DA_TORRE, AEV_NOMINAL,
+STATION_ID, FORNECEDOR_DE_EV, AREA_DO_SOLO, ALTURA_DA_ESTRUTURA,
+OBSERVACAO_THQ
+```
+
+`SITE ID` é a única coluna obrigatória. Números aceitam vírgula decimal
+(`-18,345528`) e separador de milhar com ponto (`18.000,5`).
+
+### Colunas de radio links
+
+```text
+LINK_ID, NAME, STATION_A_SITE_ID, STATION_B_SITE_ID, TECHNOLOGY,
+FREQUENCY_MHZ, CAPACITY_MBPS, DISTANCE_KM, STATUS, OBSERVATION
+```
+
+Obrigatórias: `LINK_ID`, `STATION_A_SITE_ID`, `STATION_B_SITE_ID`.
+
+> Para preservar zeros à esquerda no CEP, formate a coluna como texto no Excel.
+
 ## Validação
 
 Todos os endpoints validam a entrada de forma consistente:
@@ -394,22 +471,19 @@ make swagger
 ## Testes
 
 ```bash
-# Unitários
+# Todos os testes (unitários + repositórios com SQLite em memória)
 go test ./...
 
 # Com detector de corrida (requer CGO/gcc, ex.: Linux/macOS ou MinGW no Windows)
 go test -race ./...
 
-# Integração (requer MySQL)
-go test -tags=integration ./...
-
 # Cobertura
 make cover
 ```
 
-Os testes de integração usam `TEST_DB_DSN` quando definido. Caso contrário,
-tentam `root:admin@tcp(127.0.0.1:3306)/api_stations_radio_link` e são ignorados
-(`skip`) se o MySQL não estiver disponível.
+Os testes de repositório usam SQLite em memória (`modernc.org/sqlite`) e não
+precisam de MySQL. O MySQL local continua sendo usado apenas para rodar a
+aplicação em desenvolvimento.
 
 ## Banco de dados e adapters
 
@@ -464,7 +538,7 @@ O projeto tem dois workflows:
 
 - `.github/workflows/ci.yml`: roda em `push`/`pull_request` para `main`, executa
   `gofmt`, `go vet`, valida o Swagger, roda testes unitários e de integração com
-  MySQL e gera o binário Linux.
+  SQLite e gera o binário Linux.
 - `.github/workflows/deploy.yml`: roda automaticamente após o CI concluir com
   sucesso em `main` (ou manualmente via **Run workflow**). Ele compila o binário
   Linux, envia para o servidor via SSH e executa `deploy.sh`.

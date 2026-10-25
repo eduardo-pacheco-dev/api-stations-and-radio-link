@@ -1,5 +1,3 @@
-//go:build integration
-
 package stationmysql_test
 
 import (
@@ -8,48 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"os"
 	"testing"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
-
-	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/stationmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/testutil/sqlitedb"
 )
-
-const defaultTestDSN = "root:admin@tcp(127.0.0.1:3306)/api_stations_radio_link?parseTime=true&charset=utf8mb4"
 
 func openTestDatabase(t *testing.T) *sql.DB {
 	t.Helper()
 
-	dsn := os.Getenv("TEST_DB_DSN")
-	if dsn == "" {
-		dsn = defaultTestDSN
-	}
-
-	db, err := sql.Open("mysql", dsn)
-	if err != nil {
-		t.Fatalf("open test database: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
-			t.Errorf("close test database: %v", err)
-		}
-	})
-
-	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
-	defer cancel()
-
-	if err := db.PingContext(ctx); err != nil {
-		t.Skipf("MySQL is not available: %v", err)
-	}
-	if err := database.Migrate(ctx, db); err != nil {
-		t.Fatalf("run migrations: %v", err)
-	}
-
-	return db
+	return sqlitedb.Open(t)
 }
 
 func integrationData(siteID string) station.StationData {

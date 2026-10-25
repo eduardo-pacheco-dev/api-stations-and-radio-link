@@ -33,6 +33,11 @@ type stationServiceStub struct {
 
 	deleteID  string
 	deleteErr error
+
+	importResult  station.ImportResult
+	importRows    []station.ImportRow
+	importOptions station.ImportOptions
+	importErr     error
 }
 
 func (s *stationServiceStub) Create(_ context.Context, data station.StationData) (station.Station, error) {
@@ -64,6 +69,13 @@ func (s *stationServiceStub) Delete(_ context.Context, siteID string) error {
 	s.deleteID = siteID
 
 	return s.deleteErr
+}
+
+func (s *stationServiceStub) Import(_ context.Context, rows []station.ImportRow, options station.ImportOptions) (station.ImportResult, error) {
+	s.importRows = rows
+	s.importOptions = options
+
+	return s.importResult, s.importErr
 }
 
 func sampleStation() station.Station {

@@ -6,8 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/spreadsheet"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 )
 
@@ -18,6 +20,7 @@ type StationService interface {
 	List(ctx context.Context, filter station.ListFilter) (station.Page, error)
 	Update(ctx context.Context, siteID string, data station.StationData) (station.Station, error)
 	Delete(ctx context.Context, siteID string) error
+	Import(ctx context.Context, rows []station.ImportRow, options station.ImportOptions) (station.ImportResult, error)
 }
 
 // StationHandler serves the station CRUD endpoints.
@@ -34,6 +37,7 @@ func NewStationHandler(service StationService, logger *slog.Logger) *StationHand
 // Register adds the station routes to the mux.
 func (h *StationHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/stations", h.Create)
+	mux.HandleFunc("POST /api/v1/stations/import", h.Import)
 	mux.HandleFunc("GET /api/v1/stations", h.List)
 	mux.HandleFunc("GET /api/v1/stations/{siteID}", h.Get)
 	mux.HandleFunc("PUT /api/v1/stations/{siteID}", h.Update)
@@ -68,6 +72,65 @@ func (h *StationHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Location", "/api/v1/stations/"+url.PathEscape(created.SiteID))
 	writeJSON(w, http.StatusCreated, created, h.logger)
+}
+
+// Import godoc
+//
+//	@Summary		Import stations from Excel
+//	@Description	Imports stations from the first sheet of an .xlsx file. Invalid rows are reported individually.
+//	@Tags			stations
+//	@Accept			multipart/form-data
+//	@Produce		json
+//	@Param			file	formData	file	true	"Excel .xlsx file"
+//	@Param			mode	query		string	false	"insert or upsert"	Enums(insert,upsert)	default(insert)
+//	@Param			dry_run	query		bool	false	"Validate without writing"	default(false)
+//	@Success		200		{object}	station.ImportResult
+//	@Failure		400		{object}	httpapi.ErrorResponse
+//	@Failure		413		{object}	httpapi.ErrorResponse
+//	@Failure		500		{object}	httpapi.ErrorResponse
+//	@Router			/stations/import [post]
+func (h *StationHandler) Import(w http.ResponseWriter, r *http.Request) {
+	mode, dryRun, err := parseImportOptions(r)
+	if err != nil {
+		writeRequestError(w, h.logger, err)
+		return
+	}
+
+	file, cleanup, err := openImportFile(w, r)
+	if err != nil {
+		writeRequestError(w, h.logger, err)
+		return
+	}
+	defer cleanup()
+
+	parsed, err := spreadsheet.ParseStations(file)
+	if err != nil {
+		writeRequestError(w, h.logger, newRequestError(http.StatusBadRequest, "invalid excel file: %v", err))
+		return
+	}
+
+	result, err := h.service.Import(r.Context(), parsed.Rows, station.ImportOptions{
+		Mode:   station.ImportMode(mode),
+		DryRun: dryRun,
+	})
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	result.Total = parsed.Total
+	for _, issue := range parsed.Issues {
+		result.Errors = append(result.Errors, station.ImportError{
+			Row:     issue.Row,
+			Message: issue.Message,
+		})
+	}
+	result.Failed = len(result.Errors)
+	sort.SliceStable(result.Errors, func(i, j int) bool {
+		return result.Errors[i].Row < result.Errors[j].Row
+	})
+
+	writeJSON(w, http.StatusOK, result, h.logger)
 }
 
 // List godoc

@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
-
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqlerr"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqltime"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 )
 
@@ -35,7 +35,7 @@ UPDATE stations SET
 	city = ?, state = ?, zip_code = ?, regional = ?, latitude = ?,
 	longitude = ?, status = ?, tower_type = ?, nominal_aev = ?,
 	station_id = ?, ev_supplier = ?, land_area = ?, structure_height = ?,
-	observation = ?
+	observation = ?, updated_at = CURRENT_TIMESTAMP
 WHERE site_id = ?`
 
 // Repository persists stations in MySQL.
@@ -76,8 +76,7 @@ func (r *Repository) Create(ctx context.Context, data station.StationData) (stat
 		data.Observation,
 	)
 	if err != nil {
-		var mysqlErr *mysql.MySQLError
-		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+		if sqlerr.IsDuplicate(err) {
 			return station.Station{}, fmt.Errorf("create station %q: %w", data.SiteID, station.ErrAlreadyExists)
 		}
 
@@ -179,8 +178,7 @@ func (r *Repository) Update(ctx context.Context, data station.StationData) (stat
 func (r *Repository) Delete(ctx context.Context, siteID string) error {
 	result, err := r.db.ExecContext(ctx, "DELETE FROM stations WHERE site_id = ?", siteID)
 	if err != nil {
-		var mysqlErr *mysql.MySQLError
-		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1451 {
+		if sqlerr.IsForeignKey(err) {
 			return fmt.Errorf("delete station %q: %w", siteID, station.ErrInUse)
 		}
 
@@ -217,6 +215,8 @@ func scanStation(scan func(dest ...any) error) (station.Station, error) {
 		longitude       sql.NullFloat64
 		landArea        sql.NullFloat64
 		structureHeight sql.NullFloat64
+		createdAt       sqltime.Time
+		updatedAt       sqltime.Time
 	)
 
 	err := scan(
@@ -243,13 +243,15 @@ func scanStation(scan func(dest ...any) error) (station.Station, error) {
 		&landArea,
 		&structureHeight,
 		&record.Observation,
-		&record.CreatedAt,
-		&record.UpdatedAt,
+		&createdAt,
+		&updatedAt,
 	)
 	if err != nil {
 		return station.Station{}, err
 	}
 
+	record.CreatedAt = createdAt.Time
+	record.UpdatedAt = updatedAt.Time
 	record.Latitude = floatPointer(latitude)
 	record.Longitude = floatPointer(longitude)
 	record.LandArea = floatPointer(landArea)

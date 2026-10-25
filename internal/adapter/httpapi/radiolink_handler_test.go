@@ -33,6 +33,11 @@ type radioLinkServiceStub struct {
 
 	deleteID  string
 	deleteErr error
+
+	importResult  radiolink.ImportResult
+	importRows    []radiolink.ImportRow
+	importOptions radiolink.ImportOptions
+	importErr     error
 }
 
 func (s *radioLinkServiceStub) Create(_ context.Context, data radiolink.RadioLinkData) (radiolink.RadioLink, error) {
@@ -64,6 +69,13 @@ func (s *radioLinkServiceStub) Delete(_ context.Context, linkID string) error {
 	s.deleteID = linkID
 
 	return s.deleteErr
+}
+
+func (s *radioLinkServiceStub) Import(_ context.Context, rows []radiolink.ImportRow, options radiolink.ImportOptions) (radiolink.ImportResult, error) {
+	s.importRows = rows
+	s.importOptions = options
+
+	return s.importResult, s.importErr
 }
 
 func sampleRadioLink() radiolink.RadioLink {

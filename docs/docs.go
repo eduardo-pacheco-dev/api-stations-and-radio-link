@@ -151,6 +151,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/radio-links/import": {
+            "post": {
+                "description": "Imports radio links from the first sheet of an .xlsx file. Invalid rows are reported individually.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "radio-links"
+                ],
+                "summary": "Import radio links from Excel",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Excel .xlsx file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "insert",
+                            "upsert"
+                        ],
+                        "type": "string",
+                        "default": "insert",
+                        "description": "insert or upsert",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Validate without writing",
+                        "name": "dry_run",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/radiolink.ImportResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/radio-links/{linkID}": {
             "get": {
                 "description": "Returns a radio link by link_id.",
@@ -398,6 +466,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/stations/import": {
+            "post": {
+                "description": "Imports stations from the first sheet of an .xlsx file. Invalid rows are reported individually.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "stations"
+                ],
+                "summary": "Import stations from Excel",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Excel .xlsx file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "insert",
+                            "upsert"
+                        ],
+                        "type": "string",
+                        "default": "insert",
+                        "description": "insert or upsert",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Validate without writing",
+                        "name": "dry_run",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/station.ImportResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stations/{siteID}": {
             "get": {
                 "description": "Returns a station by site_id.",
@@ -579,6 +715,58 @@ const docTemplate = `{
                 }
             }
         },
+        "radiolink.ImportError": {
+            "type": "object",
+            "properties": {
+                "link_id": {
+                    "type": "string",
+                    "example": "RL-0001"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "link_id is required"
+                },
+                "row": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "radiolink.ImportResult": {
+            "type": "object",
+            "properties": {
+                "dry_run": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/radiolink.ImportError"
+                    }
+                },
+                "failed": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "imported": {
+                    "type": "integer",
+                    "example": 90
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "updated": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "valid": {
+                    "type": "integer",
+                    "example": 95
+                }
+            }
+        },
         "radiolink.Page": {
             "type": "object",
             "properties": {
@@ -701,6 +889,58 @@ const docTemplate = `{
                 "technology": {
                     "type": "string",
                     "example": "MW"
+                }
+            }
+        },
+        "station.ImportError": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string",
+                    "example": "site_id is required"
+                },
+                "row": {
+                    "type": "integer",
+                    "example": 2
+                },
+                "site_id": {
+                    "type": "string",
+                    "example": "TSHG01"
+                }
+            }
+        },
+        "station.ImportResult": {
+            "type": "object",
+            "properties": {
+                "dry_run": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/station.ImportError"
+                    }
+                },
+                "failed": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "imported": {
+                    "type": "integer",
+                    "example": 90
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 100
+                },
+                "updated": {
+                    "type": "integer",
+                    "example": 5
+                },
+                "valid": {
+                    "type": "integer",
+                    "example": 95
                 }
             }
         },

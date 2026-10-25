@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
-
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqlerr"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqltime"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
 )
 
@@ -28,7 +28,7 @@ const updateRadioLink = `
 UPDATE radio_links SET
 	name = ?, station_a_site_id = ?, station_b_site_id = ?, technology = ?,
 	frequency_mhz = ?, capacity_mbps = ?, distance_km = ?, status = ?,
-	observation = ?
+	observation = ?, updated_at = CURRENT_TIMESTAMP
 WHERE link_id = ?`
 
 // Repository persists radio links in MySQL.
@@ -184,6 +184,8 @@ func scanRadioLink(scan func(dest ...any) error) (radiolink.RadioLink, error) {
 		frequency sql.NullFloat64
 		capacity  sql.NullFloat64
 		distance  sql.NullFloat64
+		createdAt sqltime.Time
+		updatedAt sqltime.Time
 	)
 
 	err := scan(
@@ -197,13 +199,15 @@ func scanRadioLink(scan func(dest ...any) error) (radiolink.RadioLink, error) {
 		&distance,
 		&record.Status,
 		&record.Observation,
-		&record.CreatedAt,
-		&record.UpdatedAt,
+		&createdAt,
+		&updatedAt,
 	)
 	if err != nil {
 		return radiolink.RadioLink{}, err
 	}
 
+	record.CreatedAt = createdAt.Time
+	record.UpdatedAt = updatedAt.Time
 	record.FrequencyMHz = floatPointer(frequency)
 	record.CapacityMbps = floatPointer(capacity)
 	record.DistanceKM = floatPointer(distance)
@@ -212,17 +216,14 @@ func scanRadioLink(scan func(dest ...any) error) (radiolink.RadioLink, error) {
 }
 
 func mapWriteError(err error, linkID string) error {
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) {
-		switch mysqlErr.Number {
-		case 1062:
-			return fmt.Errorf("save radio link %q: %w", linkID, radiolink.ErrAlreadyExists)
-		case 1452:
-			return fmt.Errorf("save radio link %q: %w", linkID, radiolink.ErrStationNotFound)
-		}
+	switch {
+	case sqlerr.IsDuplicate(err):
+		return fmt.Errorf("save radio link %q: %w", linkID, radiolink.ErrAlreadyExists)
+	case sqlerr.IsForeignKey(err):
+		return fmt.Errorf("save radio link %q: %w", linkID, radiolink.ErrStationNotFound)
+	default:
+		return fmt.Errorf("save radio link %q: %w", linkID, err)
 	}
-
-	return fmt.Errorf("save radio link %q: %w", linkID, err)
 }
 
 func nullableFloat(value *float64) any {

@@ -15,6 +15,43 @@ definitions:
         example: ok
         type: string
     type: object
+  radiolink.ImportError:
+    properties:
+      link_id:
+        example: RL-0001
+        type: string
+      message:
+        example: link_id is required
+        type: string
+      row:
+        example: 2
+        type: integer
+    type: object
+  radiolink.ImportResult:
+    properties:
+      dry_run:
+        example: false
+        type: boolean
+      errors:
+        items:
+          $ref: '#/definitions/radiolink.ImportError'
+        type: array
+      failed:
+        example: 5
+        type: integer
+      imported:
+        example: 90
+        type: integer
+      total:
+        example: 100
+        type: integer
+      updated:
+        example: 5
+        type: integer
+      valid:
+        example: 95
+        type: integer
+    type: object
   radiolink.Page:
     properties:
       items:
@@ -105,6 +142,43 @@ definitions:
       technology:
         example: MW
         type: string
+    type: object
+  station.ImportError:
+    properties:
+      message:
+        example: site_id is required
+        type: string
+      row:
+        example: 2
+        type: integer
+      site_id:
+        example: TSHG01
+        type: string
+    type: object
+  station.ImportResult:
+    properties:
+      dry_run:
+        example: false
+        type: boolean
+      errors:
+        items:
+          $ref: '#/definitions/station.ImportError'
+        type: array
+      failed:
+        example: 5
+        type: integer
+      imported:
+        example: 90
+        type: integer
+      total:
+        example: 100
+        type: integer
+      updated:
+        example: 5
+        type: integer
+      valid:
+        example: 95
+        type: integer
     type: object
   station.Page:
     properties:
@@ -513,6 +587,53 @@ paths:
       summary: Update radio link
       tags:
       - radio-links
+  /radio-links/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Imports radio links from the first sheet of an .xlsx file. Invalid
+        rows are reported individually.
+      parameters:
+      - description: Excel .xlsx file
+        in: formData
+        name: file
+        required: true
+        type: file
+      - default: insert
+        description: insert or upsert
+        enum:
+        - insert
+        - upsert
+        in: query
+        name: mode
+        type: string
+      - default: false
+        description: Validate without writing
+        in: query
+        name: dry_run
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/radiolink.ImportResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Import radio links from Excel
+      tags:
+      - radio-links
   /stations:
     get:
       description: Returns a paginated list of stations.
@@ -667,6 +788,53 @@ paths:
           schema:
             $ref: '#/definitions/httpapi.ErrorResponse'
       summary: Update station
+      tags:
+      - stations
+  /stations/import:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Imports stations from the first sheet of an .xlsx file. Invalid
+        rows are reported individually.
+      parameters:
+      - description: Excel .xlsx file
+        in: formData
+        name: file
+        required: true
+        type: file
+      - default: insert
+        description: insert or upsert
+        enum:
+        - insert
+        - upsert
+        in: query
+        name: mode
+        type: string
+      - default: false
+        description: Validate without writing
+        in: query
+        name: dry_run
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/station.ImportResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Import stations from Excel
       tags:
       - stations
   /status:
