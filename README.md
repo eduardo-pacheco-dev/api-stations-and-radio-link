@@ -89,20 +89,22 @@ npx skills update
 
 ## Como rodar
 
-1. Suba o MySQL:
+O ambiente de desenvolvimento usa o MySQL local:
 
-```bash
-docker compose up -d mysql
-```
+| Configuração | Valor |
+| --- | --- |
+| Host | `127.0.0.1:3306` |
+| Usuário | `root` |
+| Senha | `admin` |
+| Banco | `api_stations_radio_link` |
 
-O container cria o banco `api_stations_radio_link` com usuário `root` e senha
-`admin`.
-
-Se já existir um MySQL local sem o banco, crie-o uma vez:
+1. Crie o banco uma vez, caso ainda não exista:
 
 ```bash
 mysql -uroot -padmin < scripts/init.sql
 ```
+
+As tabelas são criadas automaticamente pelas migrações ao iniciar a API.
 
 2. Crie o arquivo de ambiente:
 
@@ -120,6 +122,14 @@ Ou:
 
 ```bash
 make run
+```
+
+### Alternativa com Docker
+
+Se preferir subir o MySQL via Docker, o container usa as mesmas credenciais:
+
+```bash
+docker compose up -d mysql
 ```
 
 ### Hot reload com Air
