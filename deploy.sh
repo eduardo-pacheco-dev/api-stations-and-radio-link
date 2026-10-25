@@ -211,7 +211,8 @@ if ! start_or_restart_pm2; then
 fi
 
 if ! wait_for_health; then
-  log "healthcheck failed"
+  log "healthcheck failed; recent PM2 logs:"
+  "$PM2_BIN" logs "$PM2_APP_NAME" --lines 50 --nostream || true
   rollback
   die "deployment failed healthcheck; rolled back"
 fi

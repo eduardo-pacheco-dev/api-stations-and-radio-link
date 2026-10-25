@@ -72,7 +72,7 @@ func run() error {
 		}
 	}()
 
-	migrationCtx, cancelMigration := context.WithTimeout(context.Background(), 15*time.Second)
+	migrationCtx, cancelMigration := context.WithTimeout(context.Background(), 5*time.Second)
 	if err := database.Migrate(migrationCtx, db); err != nil {
 		logger.Error("database migration failed", "error", err)
 	}
@@ -112,7 +112,7 @@ func run() error {
 	jobRunner := importjob.NewRunner(jobRepository, jobProcessor, jobQueue, cfg.Import.Workers, logger)
 	workerCtx, stopWorkers := context.WithCancel(context.Background())
 	defer stopWorkers()
-	jobRunner.Start(workerCtx)
+	go jobRunner.Start(workerCtx)
 
 	importJobHandler := httpapi.NewImportJobHandler(jobService, cfg.Import.MaxBytes, logger)
 
