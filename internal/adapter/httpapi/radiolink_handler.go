@@ -57,7 +57,7 @@ func (h *RadioLinkHandler) Register(mux *http.ServeMux) {
 func (h *RadioLinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var data radiolink.RadioLinkData
 	if err := decodeJSON(w, r, &data); err != nil {
-		h.badRequest(w, err)
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
@@ -86,23 +86,29 @@ func (h *RadioLinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500			{object}	httpapi.ErrorResponse
 //	@Router			/radio-links [get]
 func (h *RadioLinkHandler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := queryInt(r, "page", 1)
+	page, pageSize, err := parsePagination(r, radiolink.DefaultPageSize, radiolink.MaxPageSize)
 	if err != nil {
-		h.badRequest(w, err)
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
-	pageSize, err := queryInt(r, "page_size", radiolink.DefaultPageSize)
+	search, err := validateOptionalText(r.URL.Query().Get("search"), "search", 255)
 	if err != nil {
-		h.badRequest(w, err)
+		writeRequestError(w, h.logger, err)
+		return
+	}
+
+	stationID, err := validateOptionalText(r.URL.Query().Get("station_id"), "station_id", 50)
+	if err != nil {
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
 	result, err := h.service.List(r.Context(), radiolink.ListFilter{
 		Page:      page,
 		PageSize:  pageSize,
-		Search:    r.URL.Query().Get("search"),
-		StationID: r.URL.Query().Get("station_id"),
+		Search:    search,
+		StationID: stationID,
 	})
 	if err != nil {
 		h.handleError(w, r, err)
@@ -150,17 +156,17 @@ func (h *RadioLinkHandler) Get(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500			{object}	httpapi.ErrorResponse
 //	@Router			/radio-links/{linkID} [put]
 func (h *RadioLinkHandler) Update(w http.ResponseWriter, r *http.Request) {
-	linkID := r.PathValue("linkID")
+	linkID := strings.TrimSpace(r.PathValue("linkID"))
 
 	var data radiolink.RadioLinkData
 	if err := decodeJSON(w, r, &data); err != nil {
-		h.badRequest(w, err)
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
 	bodyLinkID := strings.TrimSpace(data.LinkID)
 	if bodyLinkID != "" && bodyLinkID != linkID {
-		h.badRequest(w, errors.New("link_id in body must match the path"))
+		writeRequestError(w, h.logger, errors.New("link_id in body must match the path"))
 		return
 	}
 	data.LinkID = linkID
@@ -226,11 +232,4 @@ func (h *RadioLinkHandler) handleError(w http.ResponseWriter, r *http.Request, e
 			Message: "unexpected internal error",
 		}, h.logger)
 	}
-}
-
-func (h *RadioLinkHandler) badRequest(w http.ResponseWriter, err error) {
-	writeJSON(w, http.StatusBadRequest, ErrorResponse{
-		Error:   "invalid_request",
-		Message: err.Error(),
-	}, h.logger)
 }

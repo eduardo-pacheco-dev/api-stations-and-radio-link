@@ -2,20 +2,14 @@ package httpapi
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 )
-
-const maxRequestBodyBytes = 1 << 20
 
 // StationService is the station use case required by the HTTP adapter.
 type StationService interface {
@@ -62,7 +56,7 @@ func (h *StationHandler) Register(mux *http.ServeMux) {
 func (h *StationHandler) Create(w http.ResponseWriter, r *http.Request) {
 	var data station.StationData
 	if err := decodeJSON(w, r, &data); err != nil {
-		h.badRequest(w, r, err)
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
@@ -90,22 +84,22 @@ func (h *StationHandler) Create(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500			{object}	httpapi.ErrorResponse
 //	@Router			/stations [get]
 func (h *StationHandler) List(w http.ResponseWriter, r *http.Request) {
-	page, err := queryInt(r, "page", 1)
+	page, pageSize, err := parsePagination(r, station.DefaultPageSize, station.MaxPageSize)
 	if err != nil {
-		h.badRequest(w, r, err)
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
-	pageSize, err := queryInt(r, "page_size", station.DefaultPageSize)
+	search, err := validateOptionalText(r.URL.Query().Get("search"), "search", 255)
 	if err != nil {
-		h.badRequest(w, r, err)
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
 	result, err := h.service.List(r.Context(), station.ListFilter{
 		Page:     page,
 		PageSize: pageSize,
-		Search:   r.URL.Query().Get("search"),
+		Search:   search,
 	})
 	if err != nil {
 		h.handleError(w, r, err)
@@ -151,17 +145,17 @@ func (h *StationHandler) Get(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500		{object}	httpapi.ErrorResponse
 //	@Router			/stations/{siteID} [put]
 func (h *StationHandler) Update(w http.ResponseWriter, r *http.Request) {
-	siteID := r.PathValue("siteID")
+	siteID := strings.TrimSpace(r.PathValue("siteID"))
 
 	var data station.StationData
 	if err := decodeJSON(w, r, &data); err != nil {
-		h.badRequest(w, r, err)
+		writeRequestError(w, h.logger, err)
 		return
 	}
 
 	bodySiteID := strings.TrimSpace(data.SiteID)
 	if bodySiteID != "" && bodySiteID != siteID {
-		h.badRequest(w, r, errors.New("site_id in body must match the path"))
+		writeRequestError(w, h.logger, errors.New("site_id in body must match the path"))
 		return
 	}
 	data.SiteID = siteID
@@ -227,41 +221,4 @@ func (h *StationHandler) handleError(w http.ResponseWriter, r *http.Request, err
 			Message: "unexpected internal error",
 		}, h.logger)
 	}
-}
-
-func (h *StationHandler) badRequest(w http.ResponseWriter, r *http.Request, err error) {
-	writeJSON(w, http.StatusBadRequest, ErrorResponse{
-		Error:   "invalid_request",
-		Message: err.Error(),
-	}, h.logger)
-}
-
-func decodeJSON(w http.ResponseWriter, r *http.Request, destination any) error {
-	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodyBytes)
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(destination); err != nil {
-		return fmt.Errorf("invalid JSON body: %w", err)
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		return errors.New("request body must contain a single JSON object")
-	}
-
-	return nil
-}
-
-func queryInt(r *http.Request, key string, fallback int) (int, error) {
-	raw := strings.TrimSpace(r.URL.Query().Get(key))
-	if raw == "" {
-		return fallback, nil
-	}
-
-	value, err := strconv.Atoi(raw)
-	if err != nil {
-		return 0, fmt.Errorf("%s must be an integer", key)
-	}
-
-	return value, nil
 }

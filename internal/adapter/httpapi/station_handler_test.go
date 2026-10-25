@@ -135,6 +135,7 @@ func TestStationHandler_Create(t *testing.T) {
 
 			handler := newStationHandler(tt.service)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/stations", strings.NewReader(tt.body))
+			request.Header.Set("Content-Type", "application/json")
 			response := httptest.NewRecorder()
 
 			handler.Create(response, request)
@@ -165,6 +166,66 @@ func TestStationHandler_Create(t *testing.T) {
 				if body.Error != tt.wantError {
 					t.Errorf("error = %q, want %q", body.Error, tt.wantError)
 				}
+			}
+		})
+	}
+}
+
+func TestStationHandler_Create_RequestValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		contentType string
+		body        string
+		wantCode    int
+		wantError   string
+	}{
+		{
+			name:      "missing content type",
+			body:      `{"site_id":"TSHG01"}`,
+			wantCode:  http.StatusUnsupportedMediaType,
+			wantError: "unsupported_media_type",
+		},
+		{
+			name:        "wrong content type",
+			contentType: "text/plain",
+			body:        `{"site_id":"TSHG01"}`,
+			wantCode:    http.StatusUnsupportedMediaType,
+			wantError:   "unsupported_media_type",
+		},
+		{
+			name:        "body too large",
+			contentType: "application/json",
+			body:        strings.Repeat(" ", (1<<20)+1),
+			wantCode:    http.StatusRequestEntityTooLarge,
+			wantError:   "payload_too_large",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := newStationHandler(&stationServiceStub{})
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/stations", strings.NewReader(tt.body))
+			if tt.contentType != "" {
+				request.Header.Set("Content-Type", tt.contentType)
+			}
+			response := httptest.NewRecorder()
+
+			handler.Create(response, request)
+
+			if response.Code != tt.wantCode {
+				t.Fatalf("status code = %d, want %d", response.Code, tt.wantCode)
+			}
+
+			var body httpapi.ErrorResponse
+			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+				t.Fatalf("decode error response: %v", err)
+			}
+			if body.Error != tt.wantError {
+				t.Errorf("error = %q, want %q", body.Error, tt.wantError)
 			}
 		})
 	}
@@ -261,6 +322,26 @@ func TestStationHandler_List(t *testing.T) {
 	})
 }
 
+func TestStationHandler_List_InvalidPagination(t *testing.T) {
+	t.Parallel()
+
+	for _, query := range []string{"page=0", "page=-1", "page_size=0", "page_size=101"} {
+		t.Run(query, func(t *testing.T) {
+			t.Parallel()
+
+			handler := newStationHandler(&stationServiceStub{})
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/stations?"+query, nil)
+			response := httptest.NewRecorder()
+
+			handler.List(response, request)
+
+			if response.Code != http.StatusBadRequest {
+				t.Errorf("status code = %d, want %d", response.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
 func TestStationHandler_Update(t *testing.T) {
 	t.Parallel()
 
@@ -270,6 +351,7 @@ func TestStationHandler_Update(t *testing.T) {
 		service := &stationServiceStub{updateResult: sampleStation()}
 		handler := newStationHandler(service)
 		request := httptest.NewRequest(http.MethodPut, "/api/v1/stations/TSHG01", strings.NewReader(`{"city":"SAO PAULO"}`))
+		request.Header.Set("Content-Type", "application/json")
 		request.SetPathValue("siteID", "TSHG01")
 		response := httptest.NewRecorder()
 
@@ -289,6 +371,7 @@ func TestStationHandler_Update(t *testing.T) {
 		service := &stationServiceStub{}
 		handler := newStationHandler(service)
 		request := httptest.NewRequest(http.MethodPut, "/api/v1/stations/TSHG01", strings.NewReader(`{"site_id":"OTHER"}`))
+		request.Header.Set("Content-Type", "application/json")
 		request.SetPathValue("siteID", "TSHG01")
 		response := httptest.NewRecorder()
 
@@ -305,6 +388,7 @@ func TestStationHandler_Update(t *testing.T) {
 		service := &stationServiceStub{updateErr: station.ErrNotFound}
 		handler := newStationHandler(service)
 		request := httptest.NewRequest(http.MethodPut, "/api/v1/stations/TSHG01", strings.NewReader(`{"city":"SAO PAULO"}`))
+		request.Header.Set("Content-Type", "application/json")
 		request.SetPathValue("siteID", "TSHG01")
 		response := httptest.NewRecorder()
 

@@ -108,6 +108,14 @@ func (d StationData) Validate() error {
 	if d.State != "" && len(d.State) != 2 {
 		problems = append(problems, "state must have exactly 2 characters")
 	}
+	if d.State != "" && len(d.State) == 2 {
+		if _, ok := validBrazilianStates[d.State]; !ok {
+			problems = append(problems, "state must be a valid Brazilian UF")
+		}
+	}
+	if (d.Latitude == nil) != (d.Longitude == nil) {
+		problems = append(problems, "latitude and longitude must be provided together")
+	}
 	if d.Latitude != nil && (*d.Latitude < -90 || *d.Latitude > 90) {
 		problems = append(problems, "latitude must be between -90 and 90")
 	}
@@ -171,3 +179,10 @@ var ErrInUse = errors.New("station is in use")
 
 // ErrValidation indicates invalid station data.
 var ErrValidation = errors.New("validation failed")
+
+var validBrazilianStates = map[string]struct{}{
+	"AC": {}, "AL": {}, "AP": {}, "AM": {}, "BA": {}, "CE": {}, "DF": {},
+	"ES": {}, "GO": {}, "MA": {}, "MT": {}, "MS": {}, "MG": {}, "PA": {},
+	"PB": {}, "PR": {}, "PE": {}, "PI": {}, "RJ": {}, "RN": {}, "RS": {},
+	"RO": {}, "RR": {}, "SC": {}, "SP": {}, "SE": {}, "TO": {},
+}

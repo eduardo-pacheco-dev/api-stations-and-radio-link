@@ -323,6 +323,33 @@ curl -X POST http://localhost:8080/api/v1/radio-links \
   }'
 ```
 
+## Validação
+
+Todos os endpoints validam a entrada de forma consistente:
+
+| Regra | Resposta |
+| --- | --- |
+| `POST`/`PUT` sem `Content-Type: application/json` | `415 unsupported_media_type` |
+| Body maior que 1 MiB | `413 payload_too_large` |
+| JSON inválido, campo desconhecido ou múltiplos objetos | `400 invalid_request` |
+| Campo obrigatório ausente ou inválido | `400 validation_error` |
+| `page < 1` ou `page_size` fora de `1..100` | `400 invalid_request` |
+| `search` acima de 255 caracteres | `400 invalid_request` |
+| `site_id`/`link_id`/`station_id` acima de 50 caracteres | `400 validation_error` ou `400 invalid_request` |
+| Link referenciando estação inexistente | `422 station_not_found` |
+| Remoção de estação usada por link | `409 station_in_use` |
+| Recurso inexistente | `404 not_found` |
+| Chave duplicada | `409 already_exists` |
+
+Regras de domínio:
+
+- Station: `site_id` obrigatório, UF válida, latitude/longitude em conjunto e
+  dentro dos limites, área/altura não negativas
+- Radio link: pontas A e B obrigatórias e diferentes, frequência e capacidade
+  positivas, distância não negativa
+- `GET`/`DELETE` validam o identificador de path
+- `POST`/`PUT` rejeitam campos desconhecidos do JSON
+
 ## Migrações e seed
 
 As migrações são embutidas no binário e aplicadas automaticamente ao iniciar a

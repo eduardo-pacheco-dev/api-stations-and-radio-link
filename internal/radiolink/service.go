@@ -28,9 +28,9 @@ func (s *Service) Create(ctx context.Context, data RadioLinkData) (RadioLink, er
 
 // Get returns a radio link by link_id.
 func (s *Service) Get(ctx context.Context, linkID string) (RadioLink, error) {
-	linkID = strings.TrimSpace(linkID)
-	if linkID == "" {
-		return RadioLink{}, fmt.Errorf("%w: link_id is required", ErrValidation)
+	linkID, err := validateLinkID(linkID)
+	if err != nil {
+		return RadioLink{}, err
 	}
 
 	return s.repo.FindByID(ctx, linkID)
@@ -39,6 +39,12 @@ func (s *Service) Get(ctx context.Context, linkID string) (RadioLink, error) {
 // List returns a paginated list of radio links.
 func (s *Service) List(ctx context.Context, filter ListFilter) (Page, error) {
 	filter = filter.Normalize()
+	if len([]rune(filter.Search)) > 255 {
+		return Page{}, fmt.Errorf("%w: search must have at most 255 characters", ErrValidation)
+	}
+	if len([]rune(filter.StationID)) > 50 {
+		return Page{}, fmt.Errorf("%w: station_id must have at most 50 characters", ErrValidation)
+	}
 
 	items, total, err := s.repo.List(ctx, filter)
 	if err != nil {
@@ -72,10 +78,22 @@ func (s *Service) Update(ctx context.Context, linkID string, data RadioLinkData)
 
 // Delete removes a radio link by link_id.
 func (s *Service) Delete(ctx context.Context, linkID string) error {
-	linkID = strings.TrimSpace(linkID)
-	if linkID == "" {
-		return fmt.Errorf("%w: link_id is required", ErrValidation)
+	linkID, err := validateLinkID(linkID)
+	if err != nil {
+		return err
 	}
 
 	return s.repo.Delete(ctx, linkID)
+}
+
+func validateLinkID(linkID string) (string, error) {
+	linkID = strings.TrimSpace(linkID)
+	if linkID == "" {
+		return "", fmt.Errorf("%w: link_id is required", ErrValidation)
+	}
+	if len([]rune(linkID)) > 50 {
+		return "", fmt.Errorf("%w: link_id must have at most 50 characters", ErrValidation)
+	}
+
+	return linkID, nil
 }

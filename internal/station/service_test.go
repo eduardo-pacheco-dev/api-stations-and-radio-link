@@ -3,6 +3,7 @@ package station_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
@@ -152,6 +153,20 @@ func TestService_Create(t *testing.T) {
 			wantErr: station.ErrValidation,
 		},
 		{
+			name: "invalid brazilian state",
+			mutate: func(data *station.StationData) {
+				data.State = "XX"
+			},
+			wantErr: station.ErrValidation,
+		},
+		{
+			name: "latitude without longitude",
+			mutate: func(data *station.StationData) {
+				data.Longitude = nil
+			},
+			wantErr: station.ErrValidation,
+		},
+		{
 			name: "negative land area",
 			mutate: func(data *station.StationData) {
 				value := -1.0
@@ -243,6 +258,17 @@ func TestService_Get(t *testing.T) {
 		service := station.NewService(&fakeRepository{})
 
 		_, err := service.Get(t.Context(), " ")
+		if !errors.Is(err, station.ErrValidation) {
+			t.Fatalf("Get() error = %v, want ErrValidation", err)
+		}
+	})
+
+	t.Run("site id too long", func(t *testing.T) {
+		t.Parallel()
+
+		service := station.NewService(&fakeRepository{})
+
+		_, err := service.Get(t.Context(), strings.Repeat("A", 51))
 		if !errors.Is(err, station.ErrValidation) {
 			t.Fatalf("Get() error = %v, want ErrValidation", err)
 		}

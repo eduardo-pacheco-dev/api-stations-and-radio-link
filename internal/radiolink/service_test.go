@@ -3,6 +3,7 @@ package radiolink_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
@@ -119,6 +120,13 @@ func TestService_Create(t *testing.T) {
 			wantErr: radiolink.ErrValidation,
 		},
 		{
+			name: "same station with different case",
+			mutate: func(data *radiolink.RadioLinkData) {
+				data.StationBSiteID = "tshg01"
+			},
+			wantErr: radiolink.ErrValidation,
+		},
+		{
 			name: "missing station a",
 			mutate: func(data *radiolink.RadioLinkData) {
 				data.StationASiteID = ""
@@ -204,6 +212,15 @@ func TestService_Get(t *testing.T) {
 		_, err := radiolink.NewService(repo).Get(t.Context(), "missing")
 		if !errors.Is(err, radiolink.ErrNotFound) {
 			t.Fatalf("Get() error = %v, want ErrNotFound", err)
+		}
+	})
+
+	t.Run("link id too long", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := radiolink.NewService(&fakeRepository{}).Get(t.Context(), strings.Repeat("A", 51))
+		if !errors.Is(err, radiolink.ErrValidation) {
+			t.Fatalf("Get() error = %v, want ErrValidation", err)
 		}
 	})
 }

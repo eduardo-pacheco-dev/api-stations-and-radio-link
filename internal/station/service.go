@@ -28,9 +28,9 @@ func (s *Service) Create(ctx context.Context, data StationData) (Station, error)
 
 // Get returns a station by site_id.
 func (s *Service) Get(ctx context.Context, siteID string) (Station, error) {
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return Station{}, fmt.Errorf("%w: site_id is required", ErrValidation)
+	siteID, err := validateSiteID(siteID)
+	if err != nil {
+		return Station{}, err
 	}
 
 	return s.repo.FindByID(ctx, siteID)
@@ -39,6 +39,9 @@ func (s *Service) Get(ctx context.Context, siteID string) (Station, error) {
 // List returns a paginated list of stations.
 func (s *Service) List(ctx context.Context, filter ListFilter) (Page, error) {
 	filter = filter.Normalize()
+	if len([]rune(filter.Search)) > 255 {
+		return Page{}, fmt.Errorf("%w: search must have at most 255 characters", ErrValidation)
+	}
 
 	items, total, err := s.repo.List(ctx, filter)
 	if err != nil {
@@ -72,10 +75,22 @@ func (s *Service) Update(ctx context.Context, siteID string, data StationData) (
 
 // Delete removes a station by site_id.
 func (s *Service) Delete(ctx context.Context, siteID string) error {
-	siteID = strings.TrimSpace(siteID)
-	if siteID == "" {
-		return fmt.Errorf("%w: site_id is required", ErrValidation)
+	siteID, err := validateSiteID(siteID)
+	if err != nil {
+		return err
 	}
 
 	return s.repo.Delete(ctx, siteID)
+}
+
+func validateSiteID(siteID string) (string, error) {
+	siteID = strings.TrimSpace(siteID)
+	if siteID == "" {
+		return "", fmt.Errorf("%w: site_id is required", ErrValidation)
+	}
+	if len([]rune(siteID)) > 50 {
+		return "", fmt.Errorf("%w: site_id must have at most 50 characters", ErrValidation)
+	}
+
+	return siteID, nil
 }

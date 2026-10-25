@@ -53,7 +53,7 @@ func (d RadioLinkData) Validate() error {
 	if d.StationBSiteID == "" {
 		problems = append(problems, "station_b_site_id is required")
 	}
-	if d.StationASiteID != "" && d.StationASiteID == d.StationBSiteID {
+	if strings.EqualFold(d.StationASiteID, d.StationBSiteID) && d.StationASiteID != "" {
 		problems = append(problems, "station_a_site_id and station_b_site_id must be different")
 	}
 

@@ -135,6 +135,7 @@ func TestRadioLinkHandler_Create(t *testing.T) {
 
 			handler := newRadioLinkHandler(tt.service)
 			request := httptest.NewRequest(http.MethodPost, "/api/v1/radio-links", strings.NewReader(tt.body))
+			request.Header.Set("Content-Type", "application/json")
 			response := httptest.NewRecorder()
 
 			handler.Create(response, request)
@@ -157,6 +158,66 @@ func TestRadioLinkHandler_Create(t *testing.T) {
 				if body.Error != tt.wantError {
 					t.Errorf("error = %q, want %q", body.Error, tt.wantError)
 				}
+			}
+		})
+	}
+}
+
+func TestRadioLinkHandler_Create_RequestValidation(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		contentType string
+		body        string
+		wantCode    int
+		wantError   string
+	}{
+		{
+			name:      "missing content type",
+			body:      `{"link_id":"RL-0001"}`,
+			wantCode:  http.StatusUnsupportedMediaType,
+			wantError: "unsupported_media_type",
+		},
+		{
+			name:        "wrong content type",
+			contentType: "text/plain",
+			body:        `{"link_id":"RL-0001"}`,
+			wantCode:    http.StatusUnsupportedMediaType,
+			wantError:   "unsupported_media_type",
+		},
+		{
+			name:        "body too large",
+			contentType: "application/json",
+			body:        strings.Repeat(" ", (1<<20)+1),
+			wantCode:    http.StatusRequestEntityTooLarge,
+			wantError:   "payload_too_large",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			handler := newRadioLinkHandler(&radioLinkServiceStub{})
+			request := httptest.NewRequest(http.MethodPost, "/api/v1/radio-links", strings.NewReader(tt.body))
+			if tt.contentType != "" {
+				request.Header.Set("Content-Type", tt.contentType)
+			}
+			response := httptest.NewRecorder()
+
+			handler.Create(response, request)
+
+			if response.Code != tt.wantCode {
+				t.Fatalf("status code = %d, want %d", response.Code, tt.wantCode)
+			}
+
+			var body httpapi.ErrorResponse
+			if err := json.NewDecoder(response.Body).Decode(&body); err != nil {
+				t.Fatalf("decode error response: %v", err)
+			}
+			if body.Error != tt.wantError {
+				t.Errorf("error = %q, want %q", body.Error, tt.wantError)
 			}
 		})
 	}
@@ -254,6 +315,26 @@ func TestRadioLinkHandler_List(t *testing.T) {
 	})
 }
 
+func TestRadioLinkHandler_List_InvalidPagination(t *testing.T) {
+	t.Parallel()
+
+	for _, query := range []string{"page=0", "page=-1", "page_size=0", "page_size=101"} {
+		t.Run(query, func(t *testing.T) {
+			t.Parallel()
+
+			handler := newRadioLinkHandler(&radioLinkServiceStub{})
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/radio-links?"+query, nil)
+			response := httptest.NewRecorder()
+
+			handler.List(response, request)
+
+			if response.Code != http.StatusBadRequest {
+				t.Errorf("status code = %d, want %d", response.Code, http.StatusBadRequest)
+			}
+		})
+	}
+}
+
 func TestRadioLinkHandler_Update(t *testing.T) {
 	t.Parallel()
 
@@ -263,6 +344,7 @@ func TestRadioLinkHandler_Update(t *testing.T) {
 		service := &radioLinkServiceStub{updateResult: sampleRadioLink()}
 		handler := newRadioLinkHandler(service)
 		request := httptest.NewRequest(http.MethodPut, "/api/v1/radio-links/RL-0001", strings.NewReader(`{"name":"Novo link"}`))
+		request.Header.Set("Content-Type", "application/json")
 		request.SetPathValue("linkID", "RL-0001")
 		response := httptest.NewRecorder()
 
@@ -282,6 +364,7 @@ func TestRadioLinkHandler_Update(t *testing.T) {
 		service := &radioLinkServiceStub{}
 		handler := newRadioLinkHandler(service)
 		request := httptest.NewRequest(http.MethodPut, "/api/v1/radio-links/RL-0001", strings.NewReader(`{"link_id":"OTHER"}`))
+		request.Header.Set("Content-Type", "application/json")
 		request.SetPathValue("linkID", "RL-0001")
 		response := httptest.NewRecorder()
 
@@ -298,6 +381,7 @@ func TestRadioLinkHandler_Update(t *testing.T) {
 		service := &radioLinkServiceStub{updateErr: radiolink.ErrNotFound}
 		handler := newRadioLinkHandler(service)
 		request := httptest.NewRequest(http.MethodPut, "/api/v1/radio-links/RL-0001", strings.NewReader(`{"name":"Novo link"}`))
+		request.Header.Set("Content-Type", "application/json")
 		request.SetPathValue("linkID", "RL-0001")
 		response := httptest.NewRecorder()
 
@@ -314,6 +398,7 @@ func TestRadioLinkHandler_Update(t *testing.T) {
 		service := &radioLinkServiceStub{updateErr: radiolink.ErrStationNotFound}
 		handler := newRadioLinkHandler(service)
 		request := httptest.NewRequest(http.MethodPut, "/api/v1/radio-links/RL-0001", strings.NewReader(`{"station_a_site_id":"NOPE"}`))
+		request.Header.Set("Content-Type", "application/json")
 		request.SetPathValue("linkID", "RL-0001")
 		response := httptest.NewRecorder()
 
