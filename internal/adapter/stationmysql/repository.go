@@ -1,82 +1,35 @@
-// Package stationmysql implements the station repository with MySQL.
+// Package stationmysql implements the station repository with GORM.
 package stationmysql
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
+	"time"
 
-	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqlerr"
-	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqltime"
+	"gorm.io/gorm"
+
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/gormerr"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/gormmodel"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 )
 
-const stationColumns = `
-	site_id, technology, end_id, contract_area_type, area_holder,
-	infrastructure_type, ev_type, address, neighborhood, city, state,
-	zip_code, regional, latitude, longitude, status, tower_type, nominal_aev,
-	station_id, ev_supplier, land_area, structure_height, observation,
-	created_at, updated_at`
-
-const insertStation = `
-INSERT INTO stations (
-	site_id, technology, end_id, contract_area_type, area_holder,
-	infrastructure_type, ev_type, address, neighborhood, city, state,
-	zip_code, regional, latitude, longitude, status, tower_type, nominal_aev,
-	station_id, ev_supplier, land_area, structure_height, observation
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-
-const updateStation = `
-UPDATE stations SET
-	technology = ?, end_id = ?, contract_area_type = ?, area_holder = ?,
-	infrastructure_type = ?, ev_type = ?, address = ?, neighborhood = ?,
-	city = ?, state = ?, zip_code = ?, regional = ?, latitude = ?,
-	longitude = ?, status = ?, tower_type = ?, nominal_aev = ?,
-	station_id = ?, ev_supplier = ?, land_area = ?, structure_height = ?,
-	observation = ?, updated_at = CURRENT_TIMESTAMP
-WHERE site_id = ?`
-
-// Repository persists stations in MySQL.
+// Repository persists stations with GORM.
 type Repository struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-// NewRepository creates a MySQL station repository.
-func NewRepository(db *sql.DB) *Repository {
+// NewRepository creates a GORM station repository.
+func NewRepository(db *gorm.DB) *Repository {
 	return &Repository{db: db}
 }
 
 // Create inserts a station and returns the persisted record.
 func (r *Repository) Create(ctx context.Context, data station.StationData) (station.Station, error) {
-	_, err := r.db.ExecContext(ctx, insertStation,
-		data.SiteID,
-		data.Technology,
-		data.EndID,
-		data.ContractAreaType,
-		data.AreaHolder,
-		data.InfrastructureType,
-		data.EVType,
-		data.Address,
-		data.Neighborhood,
-		data.City,
-		data.State,
-		data.ZipCode,
-		data.Regional,
-		nullableFloat(data.Latitude),
-		nullableFloat(data.Longitude),
-		data.Status,
-		data.TowerType,
-		data.NominalAEV,
-		data.StationIDRef,
-		data.EVSupplier,
-		nullableFloat(data.LandArea),
-		nullableFloat(data.StructureHeight),
-		data.Observation,
-	)
-	if err != nil {
-		if sqlerr.IsDuplicate(err) {
+	model := toModel(data)
+
+	if err := r.db.WithContext(ctx).Create(&model).Error; err != nil {
+		if gormerr.IsDuplicate(err) {
 			return station.Station{}, fmt.Errorf("create station %q: %w", data.SiteID, station.ErrAlreadyExists)
 		}
 
@@ -88,53 +41,52 @@ func (r *Repository) Create(ctx context.Context, data station.StationData) (stat
 
 // FindByID returns a station by site_id.
 func (r *Repository) FindByID(ctx context.Context, siteID string) (station.Station, error) {
-	row := r.db.QueryRowContext(ctx,
-		"SELECT "+stationColumns+" FROM stations WHERE site_id = ?",
-		siteID,
-	)
+	var model gormmodel.Station
 
-	record, err := scanStation(row.Scan)
-	if errors.Is(err, sql.ErrNoRows) {
+	err := r.db.WithContext(ctx).First(&model, "site_id = ?", siteID).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return station.Station{}, fmt.Errorf("find station %q: %w", siteID, station.ErrNotFound)
 	}
 	if err != nil {
 		return station.Station{}, fmt.Errorf("find station %q: %w", siteID, err)
 	}
 
-	return record, nil
+	return toDomain(model), nil
 }
 
 // List returns a page of stations and the total number of matching records.
 func (r *Repository) List(ctx context.Context, filter station.ListFilter) ([]station.Station, int64, error) {
-	whereClause, args := buildWhere(filter.Search)
+	base := func() *gorm.DB {
+		query := r.db.WithContext(ctx).Model(&gormmodel.Station{})
+		if filter.Search != "" {
+			term := "%" + filter.Search + "%"
+			query = query.Where(
+				"(site_id LIKE ? OR end_id LIKE ? OR station_id LIKE ? OR city LIKE ? OR address LIKE ?)",
+				term, term, term, term, term,
+			)
+		}
+
+		return query
+	}
 
 	var total int64
-	countQuery := "SELECT COUNT(*) FROM stations" + whereClause
-	if err := r.db.QueryRowContext(ctx, countQuery, args...).Scan(&total); err != nil {
+	if err := base().Count(&total).Error; err != nil {
 		return nil, 0, fmt.Errorf("count stations: %w", err)
 	}
 
+	var models []gormmodel.Station
 	offset := (filter.Page - 1) * filter.PageSize
-	query := "SELECT " + stationColumns + " FROM stations" + whereClause +
-		" ORDER BY site_id LIMIT ? OFFSET ?"
-
-	queryArgs := append(append([]any{}, args...), filter.PageSize, offset)
-	rows, err := r.db.QueryContext(ctx, query, queryArgs...)
-	if err != nil {
+	if err := base().
+		Order("site_id ASC").
+		Limit(filter.PageSize).
+		Offset(offset).
+		Find(&models).Error; err != nil {
 		return nil, 0, fmt.Errorf("list stations: %w", err)
 	}
-	defer rows.Close()
 
-	records := make([]station.Station, 0, filter.PageSize)
-	for rows.Next() {
-		record, err := scanStation(rows.Scan)
-		if err != nil {
-			return nil, 0, fmt.Errorf("scan station: %w", err)
-		}
-		records = append(records, record)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, fmt.Errorf("iterate stations: %w", err)
+	records := make([]station.Station, 0, len(models))
+	for _, model := range models {
+		records = append(records, toDomain(model))
 	}
 
 	return records, total, nil
@@ -142,33 +94,41 @@ func (r *Repository) List(ctx context.Context, filter station.ListFilter) ([]sta
 
 // Update replaces the mutable fields of an existing station.
 func (r *Repository) Update(ctx context.Context, data station.StationData) (station.Station, error) {
-	_, err := r.db.ExecContext(ctx, updateStation,
-		data.Technology,
-		data.EndID,
-		data.ContractAreaType,
-		data.AreaHolder,
-		data.InfrastructureType,
-		data.EVType,
-		data.Address,
-		data.Neighborhood,
-		data.City,
-		data.State,
-		data.ZipCode,
-		data.Regional,
-		nullableFloat(data.Latitude),
-		nullableFloat(data.Longitude),
-		data.Status,
-		data.TowerType,
-		data.NominalAEV,
-		data.StationIDRef,
-		data.EVSupplier,
-		nullableFloat(data.LandArea),
-		nullableFloat(data.StructureHeight),
-		data.Observation,
-		data.SiteID,
-	)
-	if err != nil {
-		return station.Station{}, fmt.Errorf("update station %q: %w", data.SiteID, err)
+	updates := map[string]any{
+		"technology":          data.Technology,
+		"end_id":              data.EndID,
+		"contract_area_type":  data.ContractAreaType,
+		"area_holder":         data.AreaHolder,
+		"infrastructure_type": data.InfrastructureType,
+		"ev_type":             data.EVType,
+		"address":             data.Address,
+		"neighborhood":        data.Neighborhood,
+		"city":                data.City,
+		"state":               data.State,
+		"zip_code":            data.ZipCode,
+		"regional":            data.Regional,
+		"latitude":            nullableFloat(data.Latitude),
+		"longitude":           nullableFloat(data.Longitude),
+		"status":              data.Status,
+		"tower_type":          data.TowerType,
+		"nominal_aev":         data.NominalAEV,
+		"station_id":          data.StationIDRef,
+		"ev_supplier":         data.EVSupplier,
+		"land_area":           nullableFloat(data.LandArea),
+		"structure_height":    nullableFloat(data.StructureHeight),
+		"observation":         data.Observation,
+		"updated_at":          time.Now().UTC(),
+	}
+
+	result := r.db.WithContext(ctx).
+		Model(&gormmodel.Station{}).
+		Where("site_id = ?", data.SiteID).
+		Updates(updates)
+	if result.Error != nil {
+		return station.Station{}, fmt.Errorf("update station %q: %w", data.SiteID, result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return r.FindByID(ctx, data.SiteID)
 	}
 
 	return r.FindByID(ctx, data.SiteID)
@@ -176,88 +136,81 @@ func (r *Repository) Update(ctx context.Context, data station.StationData) (stat
 
 // Delete removes a station by site_id.
 func (r *Repository) Delete(ctx context.Context, siteID string) error {
-	result, err := r.db.ExecContext(ctx, "DELETE FROM stations WHERE site_id = ?", siteID)
-	if err != nil {
-		if sqlerr.IsForeignKey(err) {
+	result := r.db.WithContext(ctx).
+		Where("site_id = ?", siteID).
+		Delete(&gormmodel.Station{})
+	if result.Error != nil {
+		if gormerr.IsForeignKey(result.Error) {
 			return fmt.Errorf("delete station %q: %w", siteID, station.ErrInUse)
 		}
 
-		return fmt.Errorf("delete station %q: %w", siteID, err)
+		return fmt.Errorf("delete station %q: %w", siteID, result.Error)
 	}
-
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("delete station %q: %w", siteID, err)
-	}
-	if affected == 0 {
+	if result.RowsAffected == 0 {
 		return fmt.Errorf("delete station %q: %w", siteID, station.ErrNotFound)
 	}
 
 	return nil
 }
 
-func buildWhere(search string) (string, []any) {
-	search = strings.TrimSpace(search)
-	if search == "" {
-		return "", nil
+func toModel(data station.StationData) gormmodel.Station {
+	return gormmodel.Station{
+		SiteID:             data.SiteID,
+		Technology:         data.Technology,
+		EndID:              data.EndID,
+		ContractAreaType:   data.ContractAreaType,
+		AreaHolder:         data.AreaHolder,
+		InfrastructureType: data.InfrastructureType,
+		EVType:             data.EVType,
+		Address:            data.Address,
+		Neighborhood:       data.Neighborhood,
+		City:               data.City,
+		State:              data.State,
+		ZipCode:            data.ZipCode,
+		Regional:           data.Regional,
+		Latitude:           data.Latitude,
+		Longitude:          data.Longitude,
+		Status:             data.Status,
+		TowerType:          data.TowerType,
+		NominalAEV:         data.NominalAEV,
+		StationID:          data.StationIDRef,
+		EVSupplier:         data.EVSupplier,
+		LandArea:           data.LandArea,
+		StructureHeight:    data.StructureHeight,
+		Observation:        data.Observation,
 	}
-
-	term := "%" + search + "%"
-
-	return " WHERE (site_id LIKE ? OR end_id LIKE ? OR station_id LIKE ? OR city LIKE ? OR address LIKE ?)",
-		[]any{term, term, term, term, term}
 }
 
-func scanStation(scan func(dest ...any) error) (station.Station, error) {
-	var (
-		record          station.Station
-		latitude        sql.NullFloat64
-		longitude       sql.NullFloat64
-		landArea        sql.NullFloat64
-		structureHeight sql.NullFloat64
-		createdAt       sqltime.Time
-		updatedAt       sqltime.Time
-	)
-
-	err := scan(
-		&record.SiteID,
-		&record.Technology,
-		&record.EndID,
-		&record.ContractAreaType,
-		&record.AreaHolder,
-		&record.InfrastructureType,
-		&record.EVType,
-		&record.Address,
-		&record.Neighborhood,
-		&record.City,
-		&record.State,
-		&record.ZipCode,
-		&record.Regional,
-		&latitude,
-		&longitude,
-		&record.Status,
-		&record.TowerType,
-		&record.NominalAEV,
-		&record.StationIDRef,
-		&record.EVSupplier,
-		&landArea,
-		&structureHeight,
-		&record.Observation,
-		&createdAt,
-		&updatedAt,
-	)
-	if err != nil {
-		return station.Station{}, err
+func toDomain(model gormmodel.Station) station.Station {
+	return station.Station{
+		StationData: station.StationData{
+			SiteID:             model.SiteID,
+			Technology:         model.Technology,
+			EndID:              model.EndID,
+			ContractAreaType:   model.ContractAreaType,
+			AreaHolder:         model.AreaHolder,
+			InfrastructureType: model.InfrastructureType,
+			EVType:             model.EVType,
+			Address:            model.Address,
+			Neighborhood:       model.Neighborhood,
+			City:               model.City,
+			State:              model.State,
+			ZipCode:            model.ZipCode,
+			Regional:           model.Regional,
+			Latitude:           model.Latitude,
+			Longitude:          model.Longitude,
+			Status:             model.Status,
+			TowerType:          model.TowerType,
+			NominalAEV:         model.NominalAEV,
+			StationIDRef:       model.StationID,
+			EVSupplier:         model.EVSupplier,
+			LandArea:           model.LandArea,
+			StructureHeight:    model.StructureHeight,
+			Observation:        model.Observation,
+		},
+		CreatedAt: model.CreatedAt,
+		UpdatedAt: model.UpdatedAt,
 	}
-
-	record.CreatedAt = createdAt.Time
-	record.UpdatedAt = updatedAt.Time
-	record.Latitude = floatPointer(latitude)
-	record.Longitude = floatPointer(longitude)
-	record.LandArea = floatPointer(landArea)
-	record.StructureHeight = floatPointer(structureHeight)
-
-	return record, nil
 }
 
 func nullableFloat(value *float64) any {
@@ -266,14 +219,4 @@ func nullableFloat(value *float64) any {
 	}
 
 	return *value
-}
-
-func floatPointer(value sql.NullFloat64) *float64 {
-	if !value.Valid {
-		return nil
-	}
-
-	converted := value.Float64
-
-	return &converted
 }

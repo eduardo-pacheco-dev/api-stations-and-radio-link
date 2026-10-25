@@ -2,19 +2,20 @@ package stationmysql_test
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math"
 	"testing"
 	"time"
 
+	"gorm.io/gorm"
+
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/stationmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/testutil/sqlitedb"
 )
 
-func openTestDatabase(t *testing.T) *sql.DB {
+func openTestDatabase(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	return sqlitedb.Open(t)

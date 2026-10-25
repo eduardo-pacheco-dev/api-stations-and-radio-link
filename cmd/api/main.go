@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,9 +11,9 @@ import (
 	"syscall"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
+	"gorm.io/gorm"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/docs"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
@@ -56,8 +55,13 @@ func run() error {
 	if err != nil {
 		return err
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("get sql database: %w", err)
+	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := sqlDB.Close(); err != nil {
 			logger.Error("close database", "error", err)
 		}
 	}()
@@ -73,7 +77,7 @@ func run() error {
 		Version:     cfg.App.Version,
 		Environment: cfg.App.Environment,
 		PingTimeout: cfg.Database.PingTimeout,
-	}, sqlpinger.New(db, cfg.Database.Driver))
+	}, sqlpinger.New(sqlDB, cfg.Database.Driver))
 
 	stationRepository := stationmysql.NewRepository(db)
 	stationService := station.NewService(stationRepository)
@@ -106,7 +110,7 @@ func run() error {
 	return serve(server, cfg, logger)
 }
 
-func openDatabase(cfg config.Database) (*sql.DB, error) {
+func openDatabase(cfg config.Database) (*gorm.DB, error) {
 	db, err := database.Open(database.Config{
 		Driver:          cfg.Driver,
 		DSN:             cfg.DSN,

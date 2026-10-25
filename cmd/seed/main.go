@@ -2,13 +2,12 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"log"
 	"os"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+	"gorm.io/gorm"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/config"
@@ -33,8 +32,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("get sql database: %v", err)
+	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := sqlDB.Close(); err != nil {
 			log.Printf("close database: %v", err)
 		}
 	}()
@@ -57,7 +60,7 @@ func main() {
 			log.Fatalf("read seed file %q: %v", seedFile, err)
 		}
 
-		if _, err := db.ExecContext(ctx, string(content)); err != nil {
+		if err := db.WithContext(ctx).Exec(string(content)).Error; err != nil {
 			log.Fatalf("apply seed %q: %v", seedFile, err)
 		}
 
@@ -77,9 +80,9 @@ func main() {
 	log.Printf("seed complete: %d stations, %d radio links", stations, radioLinks)
 }
 
-func countRows(ctx context.Context, db *sql.DB, table string) (int, error) {
-	var total int
-	err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&total)
+func countRows(ctx context.Context, db *gorm.DB, table string) (int, error) {
+	var total int64
+	err := db.WithContext(ctx).Table(table).Count(&total).Error
 
-	return total, err
+	return int(total), err
 }

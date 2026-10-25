@@ -1,11 +1,11 @@
-// Package sqlerr classifies constraint errors from supported SQL drivers.
-package sqlerr
+// Package gormerr classifies GORM constraint errors across supported drivers.
+package gormerr
 
 import (
 	"errors"
 	"strings"
 
-	"github.com/go-sql-driver/mysql"
+	"gorm.io/gorm"
 )
 
 // IsDuplicate reports whether err is a unique/primary key violation.
@@ -13,9 +13,7 @@ func IsDuplicate(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+	if errors.Is(err, gorm.ErrDuplicatedKey) {
 		return true
 	}
 
@@ -30,9 +28,7 @@ func IsForeignKey(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	var mysqlErr *mysql.MySQLError
-	if errors.As(err, &mysqlErr) && (mysqlErr.Number == 1451 || mysqlErr.Number == 1452) {
+	if errors.Is(err, gorm.ErrForeignKeyViolated) {
 		return true
 	}
 

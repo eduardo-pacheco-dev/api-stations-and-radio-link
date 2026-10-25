@@ -5,7 +5,6 @@ import (
 	"log"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
@@ -31,8 +30,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		log.Fatalf("get sql database: %v", err)
+	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := sqlDB.Close(); err != nil {
 			log.Printf("close database: %v", err)
 		}
 	}()

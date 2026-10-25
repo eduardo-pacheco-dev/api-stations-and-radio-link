@@ -9,8 +9,8 @@ o banco de dados.
 - Go 1.24+
 - `net/http` (sem framework web)
 - MySQL 8.4
+- GORM + driver MySQL
 - Swagger/OpenAPI via `swaggo/swag` + `http-swagger`
-- `database/sql` com driver MySQL
 - SQLite em memória para testes
 - `log/slog` para logs estruturados
 - PM2 em produção
@@ -24,14 +24,14 @@ o banco de dados.
 ├── docs/                                   # documentação Swagger gerada
 ├── internal/
 │   ├── adapter/
-│   │   ├── database/                       # abertura, pool, migrações
+│   │   ├── database/                       # abertura GORM, pool, migrações
+│   │   ├── gormerr/                        # classificação de erros GORM
+│   │   ├── gormmodel/                      # modelos GORM
 │   │   ├── httpapi/                        # rotas, handlers, middleware
-│   │   ├── radiolinkmysql/                 # repositório MySQL de radio links
+│   │   ├── radiolinkmysql/                 # repositório GORM de radio links
 │   │   ├── spreadsheet/                    # parser de importação Excel
-│   │   ├── sqlerr/                         # classificação de erros SQL
 │   │   ├── sqlpinger/                      # adapter de ping no banco
-│   │   ├── sqltime/                        # scan de timestamps MySQL/SQLite
-│   │   └── stationmysql/                   # repositório MySQL de stations
+│   │   └── stationmysql/                   # repositório GORM de stations
 │   ├── config/                             # configuração via variáveis de ambiente
 │   ├── radiolink/                          # domínio, casos de uso e porta Repository
 │   ├── station/                            # domínio, casos de uso e porta Repository
@@ -487,30 +487,22 @@ aplicação em desenvolvimento.
 
 ## Banco de dados e adapters
 
-O domínio e os casos de uso não conhecem MySQL.
+O domínio e os casos de uso não conhecem MySQL nem GORM.
 
 - **Status:** usa a porta `DatabasePinger`; o adapter `sqlpinger` funciona com
   qualquer driver de `database/sql`.
-- **Stations:** usa a porta `station.Repository`; o adapter `stationmysql`
-  implementa o SQL e as migrações específicas de MySQL.
+- **Stations:** usa a porta `station.Repository`; o adapter `stationmysql` usa
+  GORM.
+- **Radio links:** usa a porta `radiolink.Repository`; o adapter
+  `radiolinkmysql` usa GORM.
+- **Modelos GORM:** ficam em `internal/adapter/gormmodel`.
+- **Testes:** usam GORM com SQLite em memória.
 
 Para trocar de banco:
 
-1. Registre o novo driver no composition root (`cmd/api/main.go`):
-
-```go
-import _ "github.com/jackc/pgx/v5/stdlib"
-```
-
-2. Ajuste as variáveis de ambiente:
-
-```env
-DB_DRIVER=pgx
-DB_DSN=postgres://user:password@localhost:5432/stations?sslmode=disable
-```
-
-3. Implemente um novo adapter para `station.Repository` com o dialeto e as
-   migrações do novo banco, e conecte-o no `main`.
+1. Adicione o dialector GORM correspondente em `database.Open`.
+2. Adicione migrações compatíveis com o novo dialeto.
+3. Ajuste `DB_DRIVER`/`DB_DSN` e conecte o dialector no `main`.
 
 Nenhuma camada de domínio, caso de uso ou HTTP precisa mudar.
 
@@ -525,7 +517,7 @@ Todas as variáveis estão documentadas em `.env.example`. As principais:
 | `APP_ENV` | `development` | Ambiente (`development` usa log texto) |
 | `HTTP_ADDR` | `:8080` | Endereço do servidor HTTP |
 | `SWAGGER_HOST` | `localhost:8080` | Host exibido no Swagger |
-| `DB_DRIVER` | `mysql` | Driver registrado em `database/sql` |
+| `DB_DRIVER` | `mysql` | Dialeto GORM (`mysql`) |
 | `DB_DSN` | DSN MySQL montado | Sobrescreve o DSN completo |
 | `DB_HOST` / `DB_PORT` | `127.0.0.1` / `3306` | Endereço do MySQL |
 | `DB_USER` / `DB_PASSWORD` | `root` / `admin` | Credenciais do MySQL |

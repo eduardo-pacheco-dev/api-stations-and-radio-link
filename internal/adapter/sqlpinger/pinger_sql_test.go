@@ -10,7 +10,11 @@ import (
 )
 
 func TestPinger_Ping(t *testing.T) {
-	db := sqlitedb.Open(t)
+	gormDB := sqlitedb.Open(t)
+	db, err := gormDB.DB()
+	if err != nil {
+		t.Fatalf("DB() error = %v", err)
+	}
 
 	pinger := sqlpinger.New(db, "sqlite")
 
@@ -26,7 +30,11 @@ func TestPinger_Ping(t *testing.T) {
 }
 
 func TestPinger_Ping_ClosedDatabase(t *testing.T) {
-	db := sqlitedb.Open(t)
+	gormDB := sqlitedb.Open(t)
+	db, err := gormDB.DB()
+	if err != nil {
+		t.Fatalf("DB() error = %v", err)
+	}
 
 	if err := db.Close(); err != nil {
 		t.Fatalf("close database: %v", err)

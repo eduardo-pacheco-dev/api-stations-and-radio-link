@@ -4,8 +4,6 @@ import (
 	"testing"
 	"time"
 
-	_ "github.com/go-sql-driver/mysql"
-
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
 )
 
@@ -23,18 +21,23 @@ func TestOpen(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatalf("DB() error = %v", err)
+	}
 	t.Cleanup(func() {
-		if err := db.Close(); err != nil {
+		if err := sqlDB.Close(); err != nil {
 			t.Errorf("Close() error = %v", err)
 		}
 	})
 
-	if got := db.Stats().MaxOpenConnections; got != 7 {
+	if got := sqlDB.Stats().MaxOpenConnections; got != 7 {
 		t.Errorf("MaxOpenConnections = %d, want 7", got)
 	}
 }
 
-func TestOpen_UnknownDriver(t *testing.T) {
+func TestOpen_UnsupportedDriver(t *testing.T) {
 	t.Parallel()
 
 	_, err := database.Open(database.Config{
@@ -42,6 +45,6 @@ func TestOpen_UnknownDriver(t *testing.T) {
 		DSN:    "ignored",
 	})
 	if err == nil {
-		t.Fatal("Open() error = nil, want unknown driver error")
+		t.Fatal("Open() error = nil, want unsupported driver error")
 	}
 }

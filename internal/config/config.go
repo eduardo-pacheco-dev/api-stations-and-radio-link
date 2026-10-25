@@ -38,8 +38,7 @@ type HTTP struct {
 
 // Database holds the database connection settings.
 //
-// Driver and DSN are intentionally generic: any driver registered with
-// database/sql can be used without changing the application layers.
+// Driver currently selects the GORM dialector; MySQL is supported.
 type Database struct {
 	Driver          string
 	DSN             string

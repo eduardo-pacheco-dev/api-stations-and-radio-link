@@ -1,16 +1,18 @@
-// Package database opens and configures a database/sql handle.
-//
-// The concrete driver is selected by configuration and registered by the
-// composition root (cmd/api). No other package depends on a specific driver.
+// Package database opens and configures the GORM database handle.
 package database
 
 import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
-// Config configures a database/sql handle.
+// Config configures a database handle.
 type Config struct {
 	Driver          string
 	DSN             string
@@ -20,21 +22,37 @@ type Config struct {
 	ConnMaxIdleTime time.Duration
 }
 
-// Open creates a database/sql handle and configures its connection pool.
+// Open creates a GORM handle backed by MySQL and configures its connection pool.
 //
 // It does not open a connection: connectivity is verified by the status check,
 // which lets the API start and report a degraded state while the database is
 // unavailable.
-func Open(cfg Config) (*sql.DB, error) {
-	db, err := sql.Open(cfg.Driver, cfg.DSN)
+func Open(cfg Config) (*gorm.DB, error) {
+	if cfg.Driver != "mysql" {
+		return nil, fmt.Errorf("unsupported database driver %q", cfg.Driver)
+	}
+
+	sqlDB, err := sql.Open("mysql", cfg.DSN)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	db.SetMaxOpenConns(cfg.MaxOpenConns)
-	db.SetMaxIdleConns(cfg.MaxIdleConns)
-	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
-	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+	sqlDB.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	sqlDB.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
 
-	return db, nil
+	gormDB, err := gorm.Open(mysql.New(mysql.Config{
+		Conn:                      sqlDB,
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{
+		TranslateError: true,
+		Logger:         logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		_ = sqlDB.Close()
+		return nil, fmt.Errorf("open gorm database: %w", err)
+	}
+
+	return gormDB, nil
 }
