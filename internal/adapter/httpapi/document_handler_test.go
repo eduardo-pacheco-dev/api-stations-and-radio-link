@@ -8,8 +8,6 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -25,6 +23,9 @@ type documentServiceStub struct {
 	getResult document.Document
 	getID     string
 	getErr    error
+
+	openReader io.ReadCloser
+	openErr    error
 
 	listResult document.Page
 	listFilter document.ListFilter
@@ -49,6 +50,18 @@ func (s *documentServiceStub) Get(_ context.Context, id string) (document.Docume
 	s.getID = id
 
 	return s.getResult, s.getErr
+}
+
+func (s *documentServiceStub) Open(_ context.Context, id string) (document.Document, io.ReadCloser, error) {
+	s.getID = id
+	if s.openErr != nil {
+		return document.Document{}, nil, s.openErr
+	}
+	if s.openReader == nil {
+		return s.getResult, io.NopCloser(strings.NewReader("")), nil
+	}
+
+	return s.getResult, s.openReader, nil
 }
 
 func (s *documentServiceStub) List(_ context.Context, filter document.ListFilter) (document.Page, error) {
@@ -180,17 +193,15 @@ func TestDocumentHandler_List(t *testing.T) {
 func TestDocumentHandler_Download(t *testing.T) {
 	t.Parallel()
 
-	path := filepath.Join(t.TempDir(), "doc.pdf")
-	if err := os.WriteFile(path, []byte("file-content"), 0o600); err != nil {
-		t.Fatalf("write file: %v", err)
+	service := &documentServiceStub{
+		getResult: document.Document{
+			ID:          "doc-1",
+			FileName:    "licenca.pdf",
+			ContentType: "application/pdf",
+			SizeBytes:   int64(len("file-content")),
+		},
+		openReader: io.NopCloser(strings.NewReader("file-content")),
 	}
-
-	service := &documentServiceStub{getResult: document.Document{
-		ID:          "doc-1",
-		FileName:    "licenca.pdf",
-		ContentType: "application/pdf",
-		FilePath:    path,
-	}}
 	handler := newDocumentHandler(service)
 	request := httptest.NewRequest(http.MethodGet, "/api/v1/documents/doc-1/download", nil)
 	request.SetPathValue("documentID", "doc-1")

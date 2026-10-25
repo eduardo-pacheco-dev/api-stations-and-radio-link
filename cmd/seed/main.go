@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 	"os"
-	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/documentstorage"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/gormmodel"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/config"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/document"
@@ -71,7 +72,7 @@ func main() {
 		log.Printf("seed applied from %s", seedFile)
 	}
 
-	if err := seedDocuments(ctx, db, cfg.Document.Dir); err != nil {
+	if err := seedDocuments(ctx, db, cfg.Document); err != nil {
 		log.Fatalf("seed documents: %v", err)
 	}
 
@@ -104,8 +105,9 @@ type seedDocument struct {
 	Content     string
 }
 
-func seedDocuments(ctx context.Context, db *gorm.DB, directory string) error {
-	if err := os.MkdirAll(directory, 0o750); err != nil {
+func seedDocuments(ctx context.Context, db *gorm.DB, cfg config.Document) error {
+	storage, err := documentstorage.New(cfg)
+	if err != nil {
 		return err
 	}
 
@@ -133,8 +135,14 @@ func seedDocuments(ctx context.Context, db *gorm.DB, directory string) error {
 	}
 
 	for _, sample := range samples {
-		filePath := filepath.Join(directory, "seed-"+sample.FileName)
-		if err := os.WriteFile(filePath, []byte(sample.Content), 0o640); err != nil {
+		key, size, err := storage.Save(
+			ctx,
+			sample.ID,
+			sample.FileName,
+			"text/plain; charset=utf-8",
+			strings.NewReader(sample.Content),
+		)
+		if err != nil {
 			return err
 		}
 
@@ -147,8 +155,8 @@ func seedDocuments(ctx context.Context, db *gorm.DB, directory string) error {
 			Description: sample.Description,
 			FileName:    sample.FileName,
 			ContentType: "text/plain; charset=utf-8",
-			SizeBytes:   int64(len(sample.Content)),
-			FilePath:    filePath,
+			SizeBytes:   size,
+			FilePath:    key,
 		}
 
 		if err := db.WithContext(ctx).Clauses(clause.OnConflict{

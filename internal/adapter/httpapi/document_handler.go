@@ -8,7 +8,7 @@ import (
 	"mime"
 	"net/http"
 	"net/url"
-	"os"
+	"strconv"
 	"strings"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/document"
@@ -18,6 +18,7 @@ import (
 type DocumentService interface {
 	Create(ctx context.Context, input document.CreateInput, file io.Reader) (document.Document, error)
 	Get(ctx context.Context, id string) (document.Document, error)
+	Open(ctx context.Context, id string) (document.Document, io.ReadCloser, error)
 	List(ctx context.Context, filter document.ListFilter) (document.Page, error)
 	Update(ctx context.Context, id string, input document.UpdateInput) (document.Document, error)
 	Delete(ctx context.Context, id string) error
@@ -251,15 +252,14 @@ func (h *DocumentHandler) Delete(w http.ResponseWriter, r *http.Request) {
 //	@Failure		500			{object}	httpapi.ErrorResponse
 //	@Router			/documents/{documentID}/download [get]
 func (h *DocumentHandler) Download(w http.ResponseWriter, r *http.Request) {
-	record, err := h.service.Get(r.Context(), r.PathValue("documentID"))
+	record, file, err := h.service.Open(r.Context(), r.PathValue("documentID"))
 	if err != nil {
-		h.handleError(w, r, err)
-		return
-	}
+		if errors.Is(err, document.ErrNotFound) {
+			h.handleError(w, r, err)
+			return
+		}
 
-	file, err := os.Open(record.FilePath)
-	if err != nil {
-		h.logger.ErrorContext(r.Context(), "open document file", "document_id", record.ID, "error", err)
+		h.logger.ErrorContext(r.Context(), "open document file", "document_id", r.PathValue("documentID"), "error", err)
 		writeJSON(w, http.StatusNotFound, ErrorResponse{
 			Error:   "not_found",
 			Message: "document file not found",
@@ -271,11 +271,17 @@ func (h *DocumentHandler) Download(w http.ResponseWriter, r *http.Request) {
 	if record.ContentType != "" {
 		w.Header().Set("Content-Type", record.ContentType)
 	}
+	if record.SizeBytes > 0 {
+		w.Header().Set("Content-Length", strconv.FormatInt(record.SizeBytes, 10))
+	}
 	w.Header().Set("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{
 		"filename": record.FileName,
 	}))
+	w.WriteHeader(http.StatusOK)
 
-	http.ServeContent(w, r, record.FileName, record.UpdatedAt, file)
+	if _, err := io.Copy(w, file); err != nil {
+		h.logger.ErrorContext(r.Context(), "stream document file", "document_id", record.ID, "error", err)
+	}
 }
 
 func documentDownloadURL(id string) string {

@@ -18,6 +18,7 @@ import (
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/docs"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/documentmysql"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/documentstorage"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/httpapi"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/importjobmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/importprocessor"
@@ -116,7 +117,7 @@ func run() error {
 	importJobHandler := httpapi.NewImportJobHandler(jobService, cfg.Import.MaxBytes, logger)
 
 	documentRepository := documentmysql.NewRepository(db)
-	documentStorage, err := document.NewStorage(cfg.Document.Dir, cfg.Document.MaxBytes)
+	documentStorage, err := documentstorage.New(cfg.Document)
 	if err != nil {
 		return fmt.Errorf("create document storage: %w", err)
 	}

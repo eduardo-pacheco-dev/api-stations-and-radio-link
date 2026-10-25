@@ -62,8 +62,15 @@ type Import struct {
 
 // Document holds document upload settings.
 type Document struct {
-	Dir      string
-	MaxBytes int64
+	Storage       string
+	Dir           string
+	MaxBytes      int64
+	R2Endpoint    string
+	R2AccessKeyID string
+	R2SecretKey   string
+	R2Bucket      string
+	R2Region      string
+	R2Prefix      string
 }
 
 const (
@@ -94,6 +101,9 @@ const (
 	defaultImportWorkers  = 1
 	defaultDocumentDir    = "./data/documents"
 	defaultDocumentBytes  = int64(100 << 20)
+	defaultDocumentStore  = "local"
+	defaultR2Region       = "auto"
+	defaultR2Prefix       = "documents"
 )
 
 type lookupFunc func(key string) (string, bool)
@@ -144,8 +154,15 @@ func load(lookup lookupFunc) (Config, error) {
 			Workers:    envInt(lookup, "IMPORT_WORKERS", defaultImportWorkers),
 		},
 		Document: Document{
-			Dir:      env("DOCUMENT_DIR", defaultDocumentDir),
-			MaxBytes: envInt64(lookup, "DOCUMENT_MAX_BYTES", defaultDocumentBytes),
+			Storage:       env("DOCUMENT_STORAGE", defaultDocumentStore),
+			Dir:           env("DOCUMENT_DIR", defaultDocumentDir),
+			MaxBytes:      envInt64(lookup, "DOCUMENT_MAX_BYTES", defaultDocumentBytes),
+			R2Endpoint:    env("R2_ENDPOINT", ""),
+			R2AccessKeyID: env("R2_ACCESS_KEY_ID", ""),
+			R2SecretKey:   env("R2_SECRET_ACCESS_KEY", ""),
+			R2Bucket:      env("R2_BUCKET", ""),
+			R2Region:      env("R2_REGION", defaultR2Region),
+			R2Prefix:      env("R2_PREFIX", defaultR2Prefix),
 		},
 	}
 
@@ -201,11 +218,30 @@ func (c Config) validate() error {
 	if c.Import.Workers < 1 {
 		problems = append(problems, errors.New("IMPORT_WORKERS must be at least 1"))
 	}
-	if strings.TrimSpace(c.Document.Dir) == "" {
-		problems = append(problems, errors.New("DOCUMENT_DIR must not be empty"))
-	}
 	if c.Document.MaxBytes <= 0 {
 		problems = append(problems, errors.New("DOCUMENT_MAX_BYTES must be positive"))
+	}
+
+	switch strings.ToLower(strings.TrimSpace(c.Document.Storage)) {
+	case "local":
+		if strings.TrimSpace(c.Document.Dir) == "" {
+			problems = append(problems, errors.New("DOCUMENT_DIR must not be empty when DOCUMENT_STORAGE=local"))
+		}
+	case "r2":
+		if strings.TrimSpace(c.Document.R2Endpoint) == "" {
+			problems = append(problems, errors.New("R2_ENDPOINT must not be empty when DOCUMENT_STORAGE=r2"))
+		}
+		if strings.TrimSpace(c.Document.R2AccessKeyID) == "" {
+			problems = append(problems, errors.New("R2_ACCESS_KEY_ID must not be empty when DOCUMENT_STORAGE=r2"))
+		}
+		if strings.TrimSpace(c.Document.R2SecretKey) == "" {
+			problems = append(problems, errors.New("R2_SECRET_ACCESS_KEY must not be empty when DOCUMENT_STORAGE=r2"))
+		}
+		if strings.TrimSpace(c.Document.R2Bucket) == "" {
+			problems = append(problems, errors.New("R2_BUCKET must not be empty when DOCUMENT_STORAGE=r2"))
+		}
+	default:
+		problems = append(problems, errors.New("DOCUMENT_STORAGE must be local or r2"))
 	}
 
 	return errors.Join(problems...)

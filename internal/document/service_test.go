@@ -58,12 +58,12 @@ func (r *fakeRepository) OwnerExists(context.Context, document.OwnerType, string
 	return r.ownerExists, nil
 }
 
-func newService(t *testing.T, repo *fakeRepository) (*document.Service, *document.Storage) {
+func newService(t *testing.T, repo *fakeRepository) (*document.Service, document.Storage) {
 	t.Helper()
 
-	storage, err := document.NewStorage(t.TempDir(), 1024)
+	storage, err := document.NewLocalStorage(t.TempDir(), 1024)
 	if err != nil {
-		t.Fatalf("NewStorage() error = %v", err)
+		t.Fatalf("NewLocalStorage() error = %v", err)
 	}
 
 	return document.NewService(repo, storage), storage

@@ -26,11 +26,13 @@ o banco de dados.
 │   ├── adapter/
 │   │   ├── database/                       # abertura GORM, pool, migrações
 │   │   ├── documentmysql/                  # repositório GORM de documentos
+│   │   ├── documentstorage/                # factory de storage
 │   │   ├── gormerr/                        # classificação de erros GORM
 │   │   ├── gormmodel/                      # modelos GORM
 │   │   ├── httpapi/                        # rotas, handlers, middleware
 │   │   ├── importjobmysql/                 # repositório GORM de jobs
 │   │   ├── importprocessor/                # executor de jobs em lotes
+│   │   ├── r2storage/                      # storage Cloudflare R2
 │   │   ├── radiolinkmysql/                 # repositório GORM de radio links
 │   │   ├── spreadsheet/                    # parser de importação Excel
 │   │   ├── sqlpinger/                      # adapter de ping no banco
@@ -389,12 +391,51 @@ As respostas de criação, consulta, atualização e listagem incluem:
 }
 ```
 
-Configuração:
+## Storage de documentos
+
+O módulo usa a porta `document.Storage`, permitindo trocar o provedor sem
+alterar domínio, service ou handlers.
+
+### Local
 
 ```env
+DOCUMENT_STORAGE=local
 DOCUMENT_DIR=./data/documents
 DOCUMENT_MAX_BYTES=104857600
 ```
+
+### Cloudflare R2
+
+```env
+DOCUMENT_STORAGE=r2
+DOCUMENT_MAX_BYTES=104857600
+R2_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_ACCESS_KEY_ID=...
+R2_SECRET_ACCESS_KEY=...
+R2_BUCKET=meu-bucket
+R2_REGION=auto
+R2_PREFIX=documents
+```
+
+O adapter `r2storage` usa a API S3-compatible do R2. O download é feito pela
+API, que lê o objeto do storage configurado.
+
+> Ao trocar de storage, os documentos existentes precisam ser migrados. O campo
+> interno `file_path` guarda a chave/path opaca retornada pelo storage.
+
+### Outros provedores
+
+Implemente `document.Storage`:
+
+```go
+type Storage interface {
+    Save(ctx context.Context, id, originalName, contentType string, reader io.Reader) (key string, size int64, err error)
+    Open(ctx context.Context, key string) (io.ReadCloser, error)
+    Remove(ctx context.Context, key string) error
+}
+```
+
+e registre no factory `internal/adapter/documentstorage`.
 
 ## Importação em massa (Excel)
 
@@ -595,8 +636,8 @@ O seed de desenvolvimento é idempotente e aplicado nesta ordem:
 
 - `scripts/seed.sql`: 15 stations de exemplo
 - `scripts/seed_radio_links.sql`: 7 radio links entre essas stations
-- 2 documentos de exemplo vinculados a `TSHG01` e `RL-0001`, com arquivos
-  gerados em `DOCUMENT_DIR`
+- 2 documentos de exemplo vinculados a `TSHG01` e `RL-0001`, enviados para o
+  storage configurado (`DOCUMENT_STORAGE`)
 
 ```bash
 make seed
@@ -683,8 +724,15 @@ Todas as variáveis estão documentadas em `.env.example`. As principais:
 | `IMPORT_BATCH_SIZE` | `1000` | Linhas por lote (máx. 1000) |
 | `IMPORT_ERROR_LIMIT` | `1000` | Erros armazenados por job |
 | `IMPORT_WORKERS` | `1` | Workers de importação |
-| `DOCUMENT_DIR` | `./data/documents` | Diretório dos documentos |
+| `DOCUMENT_STORAGE` | `local` | `local` ou `r2` |
+| `DOCUMENT_DIR` | `./data/documents` | Diretório local |
 | `DOCUMENT_MAX_BYTES` | `104857600` | Limite de upload de documentos (100 MiB) |
+| `R2_ENDPOINT` | — | Endpoint S3 do Cloudflare R2 |
+| `R2_ACCESS_KEY_ID` | — | Access key do R2 |
+| `R2_SECRET_ACCESS_KEY` | — | Secret key do R2 |
+| `R2_BUCKET` | — | Bucket do R2 |
+| `R2_REGION` | `auto` | Região do R2 |
+| `R2_PREFIX` | `documents` | Prefixo das chaves no bucket |
 
 ## CI/CD e deploy com PM2
 

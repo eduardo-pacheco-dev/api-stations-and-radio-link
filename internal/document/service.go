@@ -12,11 +12,11 @@ import (
 // Service implements the document use cases.
 type Service struct {
 	repo    Repository
-	storage *Storage
+	storage Storage
 }
 
 // NewService creates a document service.
-func NewService(repo Repository, storage *Storage) *Service {
+func NewService(repo Repository, storage Storage) *Service {
 	return &Service{repo: repo, storage: storage}
 }
 
@@ -36,14 +36,15 @@ func (s *Service) Create(ctx context.Context, input CreateInput, file io.Reader)
 	}
 
 	id := uuid.NewString()
-	path, size, err := s.storage.Save(id, input.FileName, file)
-	if err != nil {
-		return Document{}, err
-	}
 
 	contentType := strings.TrimSpace(input.ContentType)
 	if contentType == "" {
 		contentType = "application/octet-stream"
+	}
+
+	path, size, err := s.storage.Save(ctx, id, input.FileName, contentType, file)
+	if err != nil {
+		return Document{}, err
 	}
 
 	record := Document{
@@ -60,7 +61,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput, file io.Reader)
 	}
 
 	if err := s.repo.Create(ctx, &record); err != nil {
-		s.storage.Remove(path)
+		_ = s.storage.Remove(ctx, path)
 		return Document{}, err
 	}
 
@@ -75,6 +76,21 @@ func (s *Service) Get(ctx context.Context, id string) (Document, error) {
 	}
 
 	return s.repo.FindByID(ctx, id)
+}
+
+// Open returns document metadata and its stored file.
+func (s *Service) Open(ctx context.Context, id string) (Document, io.ReadCloser, error) {
+	record, err := s.Get(ctx, id)
+	if err != nil {
+		return Document{}, nil, err
+	}
+
+	file, err := s.storage.Open(ctx, record.FilePath)
+	if err != nil {
+		return Document{}, nil, fmt.Errorf("open document file: %w", err)
+	}
+
+	return record, file, nil
 }
 
 // List returns a page of documents.
@@ -151,7 +167,7 @@ func (s *Service) Delete(ctx context.Context, id string) error {
 		return err
 	}
 
-	s.storage.Remove(record.FilePath)
+	_ = s.storage.Remove(ctx, record.FilePath)
 
 	return nil
 }
