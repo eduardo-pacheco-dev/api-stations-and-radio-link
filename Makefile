@@ -32,7 +32,7 @@ migrate:
 	go run ./cmd/migrate
 
 seed:
-	mysql -h 127.0.0.1 -P 3306 -uroot -padmin api_stations_radio_link < scripts/seed.sql
+	go run ./cmd/seed
 
 up:
 	docker compose up -d mysql

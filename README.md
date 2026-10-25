@@ -289,14 +289,21 @@ make migrate
 go run ./cmd/migrate
 ```
 
-O seed com a estação de exemplo fica em `scripts/seed.sql` e é idempotente:
+O seed de desenvolvimento fica em `scripts/seed.sql` e é idempotente: registros
+com o mesmo `site_id` são atualizados. Ele cria 15 estações de exemplo cobrindo
+tecnologias, estados, status e coordenadas nulas.
 
 ```bash
 make seed
+# ou
+go run ./cmd/seed
 ```
 
-O target `make seed` requer o cliente `mysql` instalado. Sem ele, use o endpoint
-`POST /api/v1/stations` com o JSON de exemplo.
+Para usar outro arquivo:
+
+```bash
+SEED_FILE=./meu-seed.sql go run ./cmd/seed
+```
 
 ## Swagger
 
