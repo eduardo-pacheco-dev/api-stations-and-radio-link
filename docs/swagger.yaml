@@ -182,6 +182,43 @@ definitions:
       total_pages:
         type: integer
     type: object
+  importjob.Progress:
+    properties:
+      dry_run:
+        example: false
+        type: boolean
+      entity:
+        allOf:
+        - $ref: '#/definitions/importjob.Entity'
+        example: stations
+      failed_rows:
+        example: 500
+        type: integer
+      id:
+        example: 6f0e6e6e-...
+        type: string
+      imported_rows:
+        example: 100000
+        type: integer
+      processed_rows:
+        example: 150000
+        type: integer
+      status:
+        allOf:
+        - $ref: '#/definitions/importjob.Status'
+        example: running
+      total_rows:
+        example: 700000
+        type: integer
+      updated_at:
+        type: string
+      updated_rows:
+        example: 49500
+        type: integer
+      valid_rows:
+        example: 149500
+        type: integer
+    type: object
   importjob.Status:
     enum:
     - pending
@@ -628,7 +665,8 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Uploads a document attached to a station or radio link.
+      description: Uploads a document attached to a station or radio link. Maximum
+        size is configured by DOCUMENT_MAX_BYTES (default 100 MiB).
       parameters:
       - description: station or radio_link
         in: formData
@@ -878,6 +916,34 @@ paths:
           schema:
             $ref: '#/definitions/httpapi.ErrorResponse'
       summary: Get import job
+      tags:
+      - import-jobs
+  /import-jobs/{jobID}/progress:
+    get:
+      description: Returns a lightweight status for polling without the stored error
+        list.
+      parameters:
+      - description: Import job ID
+        in: path
+        name: jobID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/importjob.Progress'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Get import job progress
       tags:
       - import-jobs
   /radio-links:

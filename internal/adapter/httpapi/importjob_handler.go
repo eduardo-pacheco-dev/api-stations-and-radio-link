@@ -16,6 +16,7 @@ import (
 type ImportJobService interface {
 	Create(ctx context.Context, entity importjob.Entity, mode string, dryRun bool, fileName string, file io.Reader) (importjob.Job, error)
 	Get(ctx context.Context, id string) (importjob.Job, error)
+	Progress(ctx context.Context, id string) (importjob.Progress, error)
 	List(ctx context.Context, filter importjob.Filter) (importjob.Page, error)
 }
 
@@ -37,6 +38,7 @@ func (h *ImportJobHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/radio-links/import/jobs", h.CreateRadioLinks)
 	mux.HandleFunc("GET /api/v1/import-jobs", h.List)
 	mux.HandleFunc("GET /api/v1/import-jobs/{jobID}", h.Get)
+	mux.HandleFunc("GET /api/v1/import-jobs/{jobID}/progress", h.GetProgress)
 }
 
 // CreateStations godoc
@@ -120,6 +122,28 @@ func (h *ImportJobHandler) Get(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, job, h.logger)
+}
+
+// GetProgress godoc
+//
+//	@Summary		Get import job progress
+//	@Description	Returns a lightweight status for polling without the stored error list.
+//	@Tags			import-jobs
+//	@Produce		json
+//	@Param			jobID	path		string	true	"Import job ID"
+//	@Success		200		{object}	importjob.Progress
+//	@Failure		404		{object}	httpapi.ErrorResponse
+//	@Failure		500		{object}	httpapi.ErrorResponse
+//	@Router			/import-jobs/{jobID}/progress [get]
+func (h *ImportJobHandler) GetProgress(w http.ResponseWriter, r *http.Request) {
+	progress, err := h.service.Progress(r.Context(), r.PathValue("jobID"))
+	if err != nil {
+		h.handleError(w, r, err)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	writeJSON(w, http.StatusOK, progress, h.logger)
 }
 
 // List godoc

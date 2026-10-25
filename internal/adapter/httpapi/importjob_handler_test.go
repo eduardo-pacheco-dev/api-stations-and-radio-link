@@ -24,6 +24,10 @@ type importJobServiceStub struct {
 	getID  string
 	getErr error
 
+	progressResult importjob.Progress
+	progressID     string
+	progressErr    error
+
 	listResult importjob.Page
 	listFilter importjob.Filter
 	listErr    error
@@ -42,6 +46,12 @@ func (s *importJobServiceStub) Get(_ context.Context, id string) (importjob.Job,
 	s.getID = id
 
 	return s.getJob, s.getErr
+}
+
+func (s *importJobServiceStub) Progress(_ context.Context, id string) (importjob.Progress, error) {
+	s.progressID = id
+
+	return s.progressResult, s.progressErr
 }
 
 func (s *importJobServiceStub) List(_ context.Context, filter importjob.Filter) (importjob.Page, error) {
@@ -128,6 +138,34 @@ func TestImportJobHandler_Get(t *testing.T) {
 	}
 	if service.getID != "job-1" {
 		t.Errorf("service id = %q, want job-1", service.getID)
+	}
+}
+
+func TestImportJobHandler_GetProgress(t *testing.T) {
+	t.Parallel()
+
+	service := &importJobServiceStub{progressResult: importjob.Progress{
+		ID:            "job-1",
+		Entity:        importjob.EntityStations,
+		Status:        importjob.StatusRunning,
+		ProcessedRows: 500,
+		FailedRows:    2,
+	}}
+	handler := newImportJobHandler(service)
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/import-jobs/job-1/progress", nil)
+	request.SetPathValue("jobID", "job-1")
+	response := httptest.NewRecorder()
+
+	handler.GetProgress(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Errorf("status code = %d, want %d", response.Code, http.StatusOK)
+	}
+	if service.progressID != "job-1" {
+		t.Errorf("service id = %q, want job-1", service.progressID)
+	}
+	if cacheControl := response.Header().Get("Cache-Control"); cacheControl != "no-store" {
+		t.Errorf("Cache-Control = %q, want no-store", cacheControl)
 	}
 }
 

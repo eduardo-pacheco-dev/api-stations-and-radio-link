@@ -393,7 +393,7 @@ Configuração:
 
 ```env
 DOCUMENT_DIR=./data/documents
-DOCUMENT_MAX_BYTES=52428800
+DOCUMENT_MAX_BYTES=104857600
 ```
 
 ## Importação em massa (Excel)
@@ -492,7 +492,8 @@ Arquivos com centenas de milhares de linhas devem usar os endpoints assíncronos
 | --- | --- | --- |
 | `POST` | `/api/v1/stations/import/jobs` | Enfileira importação de stations |
 | `POST` | `/api/v1/radio-links/import/jobs` | Enfileira importação de radio links |
-| `GET` | `/api/v1/import-jobs/{jobID}` | Consulta status e progresso |
+| `GET` | `/api/v1/import-jobs/{jobID}` | Consulta status completo, incluindo erros |
+| `GET` | `/api/v1/import-jobs/{jobID}/progress` | Consulta leve para polling |
 | `GET` | `/api/v1/import-jobs` | Lista jobs |
 
 Exemplo:
@@ -522,11 +523,20 @@ Resposta `202 Accepted`:
 }
 ```
 
-Acompanhe:
+Acompanhe com o endpoint leve, sem a lista de erros:
 
 ```bash
-curl "http://localhost:8080/api/v1/import-jobs/6f0e6e6e-..."
+curl "http://localhost:8080/api/v1/import-jobs/6f0e6e6e-.../progress"
 ```
+
+Recomendação: polling a cada 5 segundos e parar quando o status for
+`completed`, `failed` ou `canceled`.
+
+O progresso do upload deve ser medido no navegador com
+`XMLHttpRequest.upload.onprogress`.
+
+Exemplo completo de frontend em
+[`examples/import-progress.html`](examples/import-progress.html).
 
 Status: `pending`, `running`, `completed`, `failed` ou `canceled`.
 
@@ -674,7 +684,7 @@ Todas as variáveis estão documentadas em `.env.example`. As principais:
 | `IMPORT_ERROR_LIMIT` | `1000` | Erros armazenados por job |
 | `IMPORT_WORKERS` | `1` | Workers de importação |
 | `DOCUMENT_DIR` | `./data/documents` | Diretório dos documentos |
-| `DOCUMENT_MAX_BYTES` | `52428800` | Limite de upload de documentos |
+| `DOCUMENT_MAX_BYTES` | `104857600` | Limite de upload de documentos (100 MiB) |
 
 ## CI/CD e deploy com PM2
 

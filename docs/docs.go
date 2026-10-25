@@ -81,7 +81,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Uploads a document attached to a station or radio link.",
+                "description": "Uploads a document attached to a station or radio link. Maximum size is configured by DOCUMENT_MAX_BYTES (default 100 MiB).",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -444,6 +444,47 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/importjob.Job"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/import-jobs/{jobID}/progress": {
+            "get": {
+                "description": "Returns a lightweight status for polling without the stored error list.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "import-jobs"
+                ],
+                "summary": "Get import job progress",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Import job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/importjob.Progress"
                         }
                     },
                     "404": {
@@ -1570,6 +1611,62 @@ const docTemplate = `{
                 },
                 "total_pages": {
                     "type": "integer"
+                }
+            }
+        },
+        "importjob.Progress": {
+            "type": "object",
+            "properties": {
+                "dry_run": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "entity": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/importjob.Entity"
+                        }
+                    ],
+                    "example": "stations"
+                },
+                "failed_rows": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "id": {
+                    "type": "string",
+                    "example": "6f0e6e6e-..."
+                },
+                "imported_rows": {
+                    "type": "integer",
+                    "example": 100000
+                },
+                "processed_rows": {
+                    "type": "integer",
+                    "example": 150000
+                },
+                "status": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/importjob.Status"
+                        }
+                    ],
+                    "example": "running"
+                },
+                "total_rows": {
+                    "type": "integer",
+                    "example": 700000
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_rows": {
+                    "type": "integer",
+                    "example": 49500
+                },
+                "valid_rows": {
+                    "type": "integer",
+                    "example": 149500
                 }
             }
         },

@@ -29,6 +29,10 @@ func (r *fakeRepository) FindByID(context.Context, string) (importjob.Job, error
 	return importjob.Job{}, importjob.ErrNotFound
 }
 
+func (r *fakeRepository) FindProgress(context.Context, string) (importjob.Progress, error) {
+	return importjob.Progress{}, importjob.ErrNotFound
+}
+
 func (r *fakeRepository) List(context.Context, importjob.Filter) ([]importjob.Job, int64, error) {
 	return nil, 0, nil
 }

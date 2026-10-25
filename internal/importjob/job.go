@@ -64,6 +64,21 @@ func (j *Job) AddError(limit int, row int, key, message string) {
 	}
 }
 
+// Progress is a lightweight import job status used for polling.
+type Progress struct {
+	ID            string    `json:"id" example:"6f0e6e6e-..."`
+	Entity        Entity    `json:"entity" example:"stations"`
+	Status        Status    `json:"status" example:"running"`
+	DryRun        bool      `json:"dry_run" example:"false"`
+	TotalRows     int64     `json:"total_rows" example:"700000"`
+	ProcessedRows int64     `json:"processed_rows" example:"150000"`
+	ValidRows     int64     `json:"valid_rows" example:"149500"`
+	ImportedRows  int64     `json:"imported_rows" example:"100000"`
+	UpdatedRows   int64     `json:"updated_rows" example:"49500"`
+	FailedRows    int64     `json:"failed_rows" example:"500"`
+	UpdatedAt     time.Time `json:"updated_at"`
+}
+
 // Filter contains job list filters.
 type Filter struct {
 	Page     int

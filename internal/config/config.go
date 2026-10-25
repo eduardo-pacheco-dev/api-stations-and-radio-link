@@ -93,7 +93,7 @@ const (
 	defaultImportErrors   = 1000
 	defaultImportWorkers  = 1
 	defaultDocumentDir    = "./data/documents"
-	defaultDocumentBytes  = int64(50 << 20)
+	defaultDocumentBytes  = int64(100 << 20)
 )
 
 type lookupFunc func(key string) (string, bool)

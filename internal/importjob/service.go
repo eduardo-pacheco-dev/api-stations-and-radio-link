@@ -84,6 +84,16 @@ func (s *Service) Get(ctx context.Context, id string) (Job, error) {
 	return s.repo.FindByID(ctx, id)
 }
 
+// Progress returns a lightweight import job status.
+func (s *Service) Progress(ctx context.Context, id string) (Progress, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return Progress{}, fmt.Errorf("%w: job id is required", ErrValidation)
+	}
+
+	return s.repo.FindProgress(ctx, id)
+}
+
 // List returns a page of import jobs.
 func (s *Service) List(ctx context.Context, filter Filter) (Page, error) {
 	filter = filter.Normalize()

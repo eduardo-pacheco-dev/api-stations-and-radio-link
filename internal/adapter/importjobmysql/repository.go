@@ -71,6 +71,38 @@ func (r *Repository) FindByID(ctx context.Context, id string) (importjob.Job, er
 	return toDomain(model), nil
 }
 
+// FindProgress returns a lightweight import job status by id.
+func (r *Repository) FindProgress(ctx context.Context, id string) (importjob.Progress, error) {
+	var model gormmodel.ImportJob
+
+	err := r.db.WithContext(ctx).
+		Select(
+			"id", "entity", "status", "dry_run", "total_rows", "processed_rows",
+			"valid_rows", "imported_rows", "updated_rows", "failed_rows", "updated_at",
+		).
+		First(&model, "id = ?", id).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return importjob.Progress{}, fmt.Errorf("find import job progress %q: %w", id, importjob.ErrNotFound)
+	}
+	if err != nil {
+		return importjob.Progress{}, fmt.Errorf("find import job progress %q: %w", id, err)
+	}
+
+	return importjob.Progress{
+		ID:            model.ID,
+		Entity:        importjob.Entity(model.Entity),
+		Status:        importjob.Status(model.Status),
+		DryRun:        model.DryRun,
+		TotalRows:     model.TotalRows,
+		ProcessedRows: model.ProcessedRows,
+		ValidRows:     model.ValidRows,
+		ImportedRows:  model.ImportedRows,
+		UpdatedRows:   model.UpdatedRows,
+		FailedRows:    model.FailedRows,
+		UpdatedAt:     model.UpdatedAt,
+	}, nil
+}
+
 // List returns a page of import jobs and the total number of matching records.
 func (r *Repository) List(ctx context.Context, filter importjob.Filter) ([]importjob.Job, int64, error) {
 	base := func() *gorm.DB {

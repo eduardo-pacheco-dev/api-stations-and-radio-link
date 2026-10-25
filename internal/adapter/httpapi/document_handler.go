@@ -48,7 +48,7 @@ func (h *DocumentHandler) Register(mux *http.ServeMux) {
 // Create godoc
 //
 //	@Summary		Create document
-//	@Description	Uploads a document attached to a station or radio link.
+//	@Description	Uploads a document attached to a station or radio link. Maximum size is configured by DOCUMENT_MAX_BYTES (default 100 MiB).
 //	@Tags			documents
 //	@Accept			multipart/form-data
 //	@Produce		json

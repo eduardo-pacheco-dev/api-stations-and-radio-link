@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Importação em massa</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    body { max-width: 760px; margin: 40px auto; padding: 0 16px; }
+    fieldset { border: 1px solid #8884; border-radius: 8px; padding: 16px; }
+    label { display: block; margin: 10px 0 4px; font-weight: 600; }
+    select, input, button { font: inherit; padding: 8px; }
+    button { cursor: pointer; }
+    progress { width: 100%; height: 18px; }
+    pre { background: #8881; padding: 12px; border-radius: 8px; overflow: auto; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; }
+    .row > div { flex: 1; min-width: 180px; }
+    .muted { opacity: .7; }
+  </style>
+</head>
+<body>
+  <h1>Importação em massa</h1>
+  <p class="muted">Upload com progresso no navegador e acompanhamento do job a cada 5 segundos.</p>
+
+  <fieldset>
+    <div class="row">
+      <div>
+        <label for="entity">Entidade</label>
+        <select id="entity">
+          <option value="stations">Stations</option>
+          <option value="radio-links">Radio links</option>
+        </select>
+      </div>
+      <div>
+        <label for="mode">Modo</label>
+        <select id="mode">
+          <option value="upsert">upsert</option>
+          <option value="insert">insert</option>
+        </select>
+      </div>
+    </div>
+
+    <label for="file">Arquivo .xlsx</label>
+    <input id="file" type="file" accept=".xlsx">
+
+    <p>
+      <button id="start">Enviar e importar</button>
+      <button id="stop" disabled>Parar acompanhamento</button>
+    </p>
+
+    <label>Upload</label>
+    <progress id="upload" value="0" max="100"></progress>
+    <span id="upload-label" class="muted">0%</span>
+
+    <label>Processamento</label>
+    <progress id="job-progress" value="0" max="100"></progress>
+    <span id="job-label" class="muted">aguardando</span>
+  </fieldset>
+
+  <h2>Status</h2>
+  <pre id="status">Nenhum job iniciado.</pre>
+
+  <script>
+    const API_BASE = "http://localhost:8080";
+    const POLL_INTERVAL = 5000;
+    const TERMINAL = new Set(["completed", "failed", "canceled"]);
+
+    const $ = (id) => document.getElementById(id);
+    let pollTimer = null;
+
+    $("start").addEventListener("click", () => {
+      const file = $("file").files[0];
+      if (!file) {
+        alert("Selecione um arquivo .xlsx");
+        return;
+      }
+
+      stopPolling();
+      $("status").textContent = "Enviando arquivo...";
+      $("upload").value = 0;
+      $("job-progress").value = 0;
+      $("job-label").textContent = "aguardando job";
+
+      const entity = $("entity").value;
+      const mode = $("mode").value;
+      const form = new FormData();
+      form.append("file", file);
+
+      const xhr = new XMLHttpRequest();
+      xhr.open("POST", `${API_BASE}/api/v1/${entity}/import/jobs?mode=${mode}`);
+
+      xhr.upload.onprogress = (event) => {
+        if (!event.lengthComputable) return;
+        const percent = Math.round((event.loaded / event.total) * 100);
+        $("upload").value = percent;
+        $("upload-label").textContent = `${percent}%`;
+      };
+
+      xhr.onload = () => {
+        if (xhr.status !== 202) {
+          $("status").textContent = `Falha no upload (${xhr.status}):\n${xhr.responseText}`;
+          return;
+        }
+
+        const job = JSON.parse(xhr.responseText);
+        $("upload").value = 100;
+        $("upload-label").textContent = "100%";
+        $("status").textContent = `Job ${job.id} criado. Acompanhando...`;
+        $("stop").disabled = false;
+        poll(job.id);
+      };
+
+      xhr.onerror = () => {
+        $("status").textContent = "Erro de rede durante o upload.";
+      };
+
+      xhr.send(form);
+    });
+
+    $("stop").addEventListener("click", stopPolling);
+
+    function poll(jobId) {
+      stopPolling();
+
+      const tick = async () => {
+        try {
+          const response = await fetch(`${API_BASE}/api/v1/import-jobs/${jobId}/progress`, {
+            cache: "no-store",
+          });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const job = await response.json();
+          render(job);
+
+          if (TERMINAL.has(job.status)) {
+            stopPolling();
+
+            const full = await fetch(`${API_BASE}/api/v1/import-jobs/${jobId}`);
+            const detail = await full.json();
+            $("status").textContent = JSON.stringify(detail, null, 2);
+            return;
+          }
+
+          pollTimer = setTimeout(tick, POLL_INTERVAL);
+        } catch (error) {
+          $("status").textContent = `Erro ao consultar job: ${error.message}`;
+          pollTimer = setTimeout(tick, POLL_INTERVAL);
+        }
+      };
+
+      tick();
+    }
+
+    function render(job) {
+      const percent = job.total_rows > 0
+        ? Math.min(100, Math.round((job.processed_rows / job.total_rows) * 100))
+        : 0;
+
+      $("job-progress").value = percent;
+      $("job-label").textContent = job.total_rows > 0
+        ? `${percent}% (${job.processed_rows}/${job.total_rows})`
+        : `${job.processed_rows} linhas processadas`;
+
+      $("status").textContent = [
+        `status: ${job.status}`,
+        `processadas: ${job.processed_rows}`,
+        `válidas: ${job.valid_rows}`,
+        `importadas: ${job.imported_rows}`,
+        `atualizadas: ${job.updated_rows}`,
+        `falhas: ${job.failed_rows}`,
+      ].join("\n");
+    }
+
+    function stopPolling() {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+      $("stop").disabled = true;
+    }
+  </script>
+</body>
+</html>

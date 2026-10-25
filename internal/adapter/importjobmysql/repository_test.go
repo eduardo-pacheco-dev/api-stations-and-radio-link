@@ -59,6 +59,14 @@ func TestRepository_CreateFindUpdate(t *testing.T) {
 	if len(updated.Errors) != 1 || updated.Errors[0].Key != "TSHG01" {
 		t.Errorf("errors = %+v, want one TSHG01 error", updated.Errors)
 	}
+
+	progress, err := repo.FindProgress(t.Context(), "job-1")
+	if err != nil {
+		t.Fatalf("FindProgress() error = %v", err)
+	}
+	if progress.Status != importjob.StatusRunning || progress.ProcessedRows != 500 || progress.FailedRows != 2 {
+		t.Errorf("progress = %+v, want running/500/2", progress)
+	}
 }
 
 func TestRepository_ListPendingAndFailRunning(t *testing.T) {
