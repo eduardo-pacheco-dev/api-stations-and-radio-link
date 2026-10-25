@@ -18,10 +18,13 @@ import (
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/docs"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/httpapi"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/importjobmysql"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/importprocessor"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/radiolinkmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqlpinger"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/stationmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/config"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/importjob"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/status"
@@ -87,11 +90,35 @@ func run() error {
 	radioLinkService := radiolink.NewService(radioLinkRepository)
 	radioLinkHandler := httpapi.NewRadioLinkHandler(radioLinkService, logger)
 
+	jobRepository := importjobmysql.NewRepository(db)
+	jobStorage, err := importjob.NewStorage(cfg.Import.Dir, cfg.Import.MaxBytes)
+	if err != nil {
+		return fmt.Errorf("create import storage: %w", err)
+	}
+
+	jobQueue := make(chan string, 100)
+	jobService := importjob.NewService(jobRepository, jobStorage, jobQueue, logger)
+	jobProcessor := importprocessor.New(
+		jobRepository,
+		stationRepository,
+		radioLinkRepository,
+		cfg.Import.BatchSize,
+		cfg.Import.ErrorLimit,
+		logger,
+	)
+	jobRunner := importjob.NewRunner(jobRepository, jobProcessor, jobQueue, cfg.Import.Workers, logger)
+	workerCtx, stopWorkers := context.WithCancel(context.Background())
+	defer stopWorkers()
+	jobRunner.Start(workerCtx)
+
+	importJobHandler := httpapi.NewImportJobHandler(jobService, cfg.Import.MaxBytes, logger)
+
 	statusHandler := httpapi.NewStatusHandler(statusService, logger)
 	router := httpapi.NewRouter(httpapi.RouterConfig{
 		StatusHandler:    statusHandler,
 		StationHandler:   stationHandler,
 		RadioLinkHandler: radioLinkHandler,
+		ImportJobHandler: importJobHandler,
 		SwaggerHandler:   httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")),
 		Logger:           logger,
 	})

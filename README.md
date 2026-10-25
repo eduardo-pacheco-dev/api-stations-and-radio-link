@@ -28,11 +28,14 @@ o banco de dados.
 │   │   ├── gormerr/                        # classificação de erros GORM
 │   │   ├── gormmodel/                      # modelos GORM
 │   │   ├── httpapi/                        # rotas, handlers, middleware
+│   │   ├── importjobmysql/                 # repositório GORM de jobs
+│   │   ├── importprocessor/                # executor de jobs em lotes
 │   │   ├── radiolinkmysql/                 # repositório GORM de radio links
 │   │   ├── spreadsheet/                    # parser de importação Excel
 │   │   ├── sqlpinger/                      # adapter de ping no banco
 │   │   └── stationmysql/                   # repositório GORM de stations
 │   ├── config/                             # configuração via variáveis de ambiente
+│   ├── importjob/                          # domínio, storage, fila e runner
 │   ├── radiolink/                          # domínio, casos de uso e porta Repository
 │   ├── station/                            # domínio, casos de uso e porta Repository
 │   ├── status/                             # caso de uso + portas + read model
@@ -400,6 +403,65 @@ Obrigatórias: `LINK_ID`, `STATION_A_SITE_ID`, `STATION_B_SITE_ID`.
 
 > Para preservar zeros à esquerda no CEP, formate a coluna como texto no Excel.
 
+### Jobs para arquivos grandes
+
+Arquivos com centenas de milhares de linhas devem usar os endpoints assíncronos:
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `POST` | `/api/v1/stations/import/jobs` | Enfileira importação de stations |
+| `POST` | `/api/v1/radio-links/import/jobs` | Enfileira importação de radio links |
+| `GET` | `/api/v1/import-jobs/{jobID}` | Consulta status e progresso |
+| `GET` | `/api/v1/import-jobs` | Lista jobs |
+
+Exemplo:
+
+```bash
+curl -X POST "http://localhost:8080/api/v1/stations/import/jobs?mode=upsert" \
+  -F "file=@stations-700k.xlsx"
+```
+
+Resposta `202 Accepted`:
+
+```json
+{
+  "id": "6f0e6e6e-...",
+  "entity": "stations",
+  "status": "pending",
+  "mode": "upsert",
+  "dry_run": false,
+  "file_name": "stations-700k.xlsx",
+  "total_rows": 0,
+  "processed_rows": 0,
+  "valid_rows": 0,
+  "imported_rows": 0,
+  "updated_rows": 0,
+  "failed_rows": 0,
+  "errors": []
+}
+```
+
+Acompanhe:
+
+```bash
+curl "http://localhost:8080/api/v1/import-jobs/6f0e6e6e-..."
+```
+
+Status: `pending`, `running`, `completed`, `failed` ou `canceled`.
+
+Características:
+
+- Leitura do Excel em streaming, sem carregar todas as linhas na memória
+- Processamento em lotes configuráveis (`IMPORT_BATCH_SIZE`)
+- Upsert em lote via GORM
+- Progresso persistido a cada lote
+- Erros limitados por job (`IMPORT_ERROR_LIMIT`), mantendo a contagem total
+- Job interrompido por restart é marcado como `failed`
+- Máximo de upload: `IMPORT_MAX_BYTES` (padrão 250 MiB)
+- Diretório dos arquivos: `IMPORT_DIR` (padrão `./data/imports`)
+- Workers: `IMPORT_WORKERS` (padrão `1`)
+- Jobs `pending` são retomados na inicialização
+
 ## Validação
 
 Todos os endpoints validam a entrada de forma consistente:
@@ -523,6 +585,11 @@ Todas as variáveis estão documentadas em `.env.example`. As principais:
 | `DB_USER` / `DB_PASSWORD` | `root` / `admin` | Credenciais do MySQL |
 | `DB_NAME` | `api_stations_radio_link` | Nome do banco |
 | `DB_PING_TIMEOUT` | `2s` | Timeout do ping de status |
+| `IMPORT_DIR` | `./data/imports` | Diretório dos arquivos de importação |
+| `IMPORT_MAX_BYTES` | `262144000` | Limite de upload dos jobs |
+| `IMPORT_BATCH_SIZE` | `1000` | Linhas por lote (máx. 1000) |
+| `IMPORT_ERROR_LIMIT` | `1000` | Erros armazenados por job |
+| `IMPORT_WORKERS` | `1` | Workers de importação |
 
 ## CI/CD e deploy com PM2
 

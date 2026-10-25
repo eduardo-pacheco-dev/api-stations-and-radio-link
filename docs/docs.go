@@ -35,6 +35,107 @@ const docTemplate = `{
                 }
             }
         },
+        "/import-jobs": {
+            "get": {
+                "description": "Returns a paginated list of import jobs.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "import-jobs"
+                ],
+                "summary": "List import jobs",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size (max 100)",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "stations or radio_links",
+                        "name": "entity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "pending, running, completed, failed or canceled",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/importjob.Page"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/import-jobs/{jobID}": {
+            "get": {
+                "description": "Returns the status and progress of an import job.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "import-jobs"
+                ],
+                "summary": "Get import job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Import job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/importjob.Job"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/radio-links": {
             "get": {
                 "description": "Returns a paginated list of radio links.",
@@ -196,6 +297,74 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/radiolink.ImportResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/radio-links/import/jobs": {
+            "post": {
+                "description": "Queues an asynchronous radio link import from an .xlsx file.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "import-jobs"
+                ],
+                "summary": "Create radio link import job",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Excel .xlsx file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "insert",
+                            "upsert"
+                        ],
+                        "type": "string",
+                        "default": "insert",
+                        "description": "insert or upsert",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Validate without writing",
+                        "name": "dry_run",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/importjob.Job"
                         }
                     },
                     "400": {
@@ -534,6 +703,74 @@ const docTemplate = `{
                 }
             }
         },
+        "/stations/import/jobs": {
+            "post": {
+                "description": "Queues an asynchronous station import from an .xlsx file.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "import-jobs"
+                ],
+                "summary": "Create station import job",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "Excel .xlsx file",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "enum": [
+                            "insert",
+                            "upsert"
+                        ],
+                        "type": "string",
+                        "default": "insert",
+                        "description": "insert or upsert",
+                        "name": "mode",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Validate without writing",
+                        "name": "dry_run",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "202": {
+                        "description": "Accepted",
+                        "schema": {
+                            "$ref": "#/definitions/importjob.Job"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "413": {
+                        "description": "Request Entity Too Large",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stations/{siteID}": {
             "get": {
                 "description": "Returns a station by site_id.",
@@ -714,6 +951,156 @@ const docTemplate = `{
                     "example": "ok"
                 }
             }
+        },
+        "importjob.Entity": {
+            "type": "string",
+            "enum": [
+                "stations",
+                "radio_links"
+            ],
+            "x-enum-varnames": [
+                "EntityStations",
+                "EntityRadioLinks"
+            ]
+        },
+        "importjob.Error": {
+            "type": "object",
+            "properties": {
+                "key": {
+                    "type": "string",
+                    "example": "TSHG01"
+                },
+                "message": {
+                    "type": "string",
+                    "example": "invalid latitude \"abc\""
+                },
+                "row": {
+                    "type": "integer",
+                    "example": 2
+                }
+            }
+        },
+        "importjob.Job": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "dry_run": {
+                    "type": "boolean",
+                    "example": false
+                },
+                "entity": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/importjob.Entity"
+                        }
+                    ],
+                    "example": "stations"
+                },
+                "error_message": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/importjob.Error"
+                    }
+                },
+                "failed_rows": {
+                    "type": "integer",
+                    "example": 500
+                },
+                "file_name": {
+                    "type": "string",
+                    "example": "stations.xlsx"
+                },
+                "finished_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string",
+                    "example": "6f0e6e6e-..."
+                },
+                "imported_rows": {
+                    "type": "integer",
+                    "example": 100000
+                },
+                "mode": {
+                    "type": "string",
+                    "example": "upsert"
+                },
+                "processed_rows": {
+                    "type": "integer",
+                    "example": 150000
+                },
+                "started_at": {
+                    "type": "string"
+                },
+                "status": {
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/importjob.Status"
+                        }
+                    ],
+                    "example": "running"
+                },
+                "total_rows": {
+                    "type": "integer",
+                    "example": 700000
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_rows": {
+                    "type": "integer",
+                    "example": 49500
+                },
+                "valid_rows": {
+                    "type": "integer",
+                    "example": 149500
+                }
+            }
+        },
+        "importjob.Page": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/importjob.Job"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "importjob.Status": {
+            "type": "string",
+            "enum": [
+                "pending",
+                "running",
+                "completed",
+                "failed",
+                "canceled"
+            ],
+            "x-enum-varnames": [
+                "StatusPending",
+                "StatusRunning",
+                "StatusCompleted",
+                "StatusFailed",
+                "StatusCanceled"
+            ]
         },
         "radiolink.ImportError": {
             "type": "object",

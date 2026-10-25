@@ -67,3 +67,41 @@ func openImportFile(w http.ResponseWriter, r *http.Request) (io.ReadCloser, func
 
 	return file, cleanup, nil
 }
+
+func openJobUpload(w http.ResponseWriter, r *http.Request, maxBytes int64) (io.ReadCloser, string, func(), error) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+
+	reader, err := r.MultipartReader()
+	if err != nil {
+		return nil, "", nil, newRequestError(http.StatusBadRequest, "multipart form is required")
+	}
+
+	for {
+		part, err := reader.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, "", nil, newRequestError(http.StatusBadRequest, "invalid multipart form: %v", err)
+		}
+
+		if part.FormName() != "file" {
+			_ = part.Close()
+			continue
+		}
+
+		filename := part.FileName()
+		if !strings.HasSuffix(strings.ToLower(filename), ".xlsx") {
+			_ = part.Close()
+			return nil, "", nil, newRequestError(http.StatusBadRequest, "file must be a .xlsx spreadsheet")
+		}
+
+		cleanup := func() {
+			_ = part.Close()
+		}
+
+		return part, filename, cleanup, nil
+	}
+
+	return nil, "", nil, newRequestError(http.StatusBadRequest, "file field is required")
+}

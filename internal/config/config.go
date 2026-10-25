@@ -16,6 +16,7 @@ type Config struct {
 	App      App
 	HTTP     HTTP
 	Database Database
+	Import   Import
 }
 
 // App holds application metadata used in logs and in the status endpoint.
@@ -49,6 +50,15 @@ type Database struct {
 	PingTimeout     time.Duration
 }
 
+// Import holds the asynchronous import settings.
+type Import struct {
+	Dir        string
+	MaxBytes   int64
+	BatchSize  int
+	ErrorLimit int
+	Workers    int
+}
+
 const (
 	defaultAppName        = "api-stations-and-radio-link"
 	defaultAppVersion     = "1.0.0"
@@ -70,6 +80,11 @@ const (
 	defaultConnMaxLife    = 5 * time.Minute
 	defaultConnMaxIdle    = 5 * time.Minute
 	defaultPingTimeout    = 2 * time.Second
+	defaultImportDir      = "./data/imports"
+	defaultImportMaxBytes = int64(250 << 20)
+	defaultImportBatch    = 1000
+	defaultImportErrors   = 1000
+	defaultImportWorkers  = 1
 )
 
 type lookupFunc func(key string) (string, bool)
@@ -112,6 +127,13 @@ func load(lookup lookupFunc) (Config, error) {
 			ConnMaxIdleTime: envDuration(lookup, "DB_CONN_MAX_IDLE_TIME", defaultConnMaxIdle),
 			PingTimeout:     envDuration(lookup, "DB_PING_TIMEOUT", defaultPingTimeout),
 		},
+		Import: Import{
+			Dir:        env("IMPORT_DIR", defaultImportDir),
+			MaxBytes:   envInt64(lookup, "IMPORT_MAX_BYTES", defaultImportMaxBytes),
+			BatchSize:  envInt(lookup, "IMPORT_BATCH_SIZE", defaultImportBatch),
+			ErrorLimit: envInt(lookup, "IMPORT_ERROR_LIMIT", defaultImportErrors),
+			Workers:    envInt(lookup, "IMPORT_WORKERS", defaultImportWorkers),
+		},
 	}
 
 	if err := cfg.validate(); err != nil {
@@ -148,6 +170,24 @@ func (c Config) validate() error {
 	if c.Database.PingTimeout <= 0 {
 		problems = append(problems, errors.New("DB_PING_TIMEOUT must be positive"))
 	}
+	if strings.TrimSpace(c.Import.Dir) == "" {
+		problems = append(problems, errors.New("IMPORT_DIR must not be empty"))
+	}
+	if c.Import.MaxBytes <= 0 {
+		problems = append(problems, errors.New("IMPORT_MAX_BYTES must be positive"))
+	}
+	if c.Import.BatchSize < 1 {
+		problems = append(problems, errors.New("IMPORT_BATCH_SIZE must be at least 1"))
+	}
+	if c.Import.BatchSize > 1000 {
+		problems = append(problems, errors.New("IMPORT_BATCH_SIZE must be at most 1000"))
+	}
+	if c.Import.ErrorLimit < 1 {
+		problems = append(problems, errors.New("IMPORT_ERROR_LIMIT must be at least 1"))
+	}
+	if c.Import.Workers < 1 {
+		problems = append(problems, errors.New("IMPORT_WORKERS must be at least 1"))
+	}
 
 	return errors.Join(problems...)
 }
@@ -170,6 +210,20 @@ func envInt(lookup lookupFunc, key string, fallback int) int {
 	}
 
 	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return fallback
+	}
+
+	return parsed
+}
+
+func envInt64(lookup lookupFunc, key string, fallback int64) int64 {
+	value, ok := lookup(key)
+	if !ok || strings.TrimSpace(value) == "" {
+		return fallback
+	}
+
+	parsed, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		return fallback
 	}

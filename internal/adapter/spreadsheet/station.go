@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xuri/excelize/v2"
+
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 )
 
@@ -39,55 +41,13 @@ func ParseStations(reader io.Reader) (StationResult, error) {
 		result.Total++
 		excelRow := position + 2
 
-		latitude, err := parseOptionalFloat(cell(row, index, "latitude"))
-		if err != nil {
-			result.Issues = append(result.Issues, Issue{Row: excelRow, Message: "latitude: " + err.Error()})
-			continue
-		}
-		longitude, err := parseOptionalFloat(cell(row, index, "longitude"))
-		if err != nil {
-			result.Issues = append(result.Issues, Issue{Row: excelRow, Message: "longitude: " + err.Error()})
-			continue
-		}
-		landArea, err := parseOptionalFloat(cell(row, index, "land_area"))
-		if err != nil {
-			result.Issues = append(result.Issues, Issue{Row: excelRow, Message: "land_area: " + err.Error()})
-			continue
-		}
-		structureHeight, err := parseOptionalFloat(cell(row, index, "structure_height"))
-		if err != nil {
-			result.Issues = append(result.Issues, Issue{Row: excelRow, Message: "structure_height: " + err.Error()})
+		importRow, issue := buildStationRow(excelRow, row, index)
+		if issue != nil {
+			result.Issues = append(result.Issues, *issue)
 			continue
 		}
 
-		result.Rows = append(result.Rows, station.ImportRow{
-			Row: excelRow,
-			Data: station.StationData{
-				SiteID:             cell(row, index, "site_id"),
-				Technology:         cell(row, index, "technology"),
-				EndID:              cell(row, index, "end_id"),
-				ContractAreaType:   cell(row, index, "contract_area_type"),
-				AreaHolder:         cell(row, index, "area_holder"),
-				InfrastructureType: cell(row, index, "infrastructure_type"),
-				EVType:             cell(row, index, "ev_type"),
-				Address:            cell(row, index, "address"),
-				Neighborhood:       cell(row, index, "neighborhood"),
-				City:               cell(row, index, "city"),
-				State:              cell(row, index, "state"),
-				ZipCode:            cell(row, index, "zip_code"),
-				Regional:           cell(row, index, "regional"),
-				Latitude:           latitude,
-				Longitude:          longitude,
-				Status:             cell(row, index, "status"),
-				TowerType:          cell(row, index, "tower_type"),
-				NominalAEV:         cell(row, index, "nominal_aev"),
-				StationIDRef:       cell(row, index, "station_id"),
-				EVSupplier:         cell(row, index, "ev_supplier"),
-				LandArea:           landArea,
-				StructureHeight:    structureHeight,
-				Observation:        cell(row, index, "observation"),
-			},
-		})
+		result.Rows = append(result.Rows, importRow)
 	}
 
 	if len(result.Rows) == 0 && len(result.Issues) == 0 {
@@ -95,6 +55,125 @@ func ParseStations(reader io.Reader) (StationResult, error) {
 	}
 
 	return result, nil
+}
+
+// StreamStations reads the first sheet row by row without loading the whole
+// workbook into memory. It is intended for large import jobs.
+func StreamStations(
+	filePath string,
+	onRow func(station.ImportRow) error,
+	onIssue func(Issue) error,
+) (int, error) {
+	file, err := excelize.OpenFile(filePath, excelize.Options{RawCellValue: true})
+	if err != nil {
+		return 0, fmt.Errorf("open excel file: %w", err)
+	}
+	defer file.Close()
+
+	sheets := file.GetSheetList()
+	if len(sheets) == 0 {
+		return 0, fmt.Errorf("excel file has no sheets")
+	}
+
+	rows, err := file.Rows(sheets[0])
+	if err != nil {
+		return 0, fmt.Errorf("read sheet %q: %w", sheets[0], err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return 0, fmt.Errorf("excel file has no rows")
+	}
+	headers, err := rows.Columns()
+	if err != nil {
+		return 0, fmt.Errorf("read header: %w", err)
+	}
+
+	index := mapHeaders(headers, stationHeaderKey)
+	if err := requireHeaders(index, "site_id"); err != nil {
+		return 0, err
+	}
+
+	total := 0
+	excelRow := 1
+	for rows.Next() {
+		excelRow++
+		row, err := rows.Columns()
+		if err != nil {
+			return total, fmt.Errorf("read row %d: %w", excelRow, err)
+		}
+		if blankRow(row) {
+			continue
+		}
+
+		total++
+		importRow, issue := buildStationRow(excelRow, row, index)
+		if issue != nil {
+			if err := onIssue(*issue); err != nil {
+				return total, err
+			}
+			continue
+		}
+		if err := onRow(importRow); err != nil {
+			return total, err
+		}
+	}
+	if err := rows.Error(); err != nil {
+		return total, fmt.Errorf("iterate rows: %w", err)
+	}
+	if total == 0 {
+		return 0, fmt.Errorf("excel file has no data rows")
+	}
+
+	return total, nil
+}
+
+func buildStationRow(excelRow int, row []string, index map[string]int) (station.ImportRow, *Issue) {
+	latitude, err := parseOptionalFloat(cell(row, index, "latitude"))
+	if err != nil {
+		return station.ImportRow{}, &Issue{Row: excelRow, Message: "latitude: " + err.Error()}
+	}
+	longitude, err := parseOptionalFloat(cell(row, index, "longitude"))
+	if err != nil {
+		return station.ImportRow{}, &Issue{Row: excelRow, Message: "longitude: " + err.Error()}
+	}
+	landArea, err := parseOptionalFloat(cell(row, index, "land_area"))
+	if err != nil {
+		return station.ImportRow{}, &Issue{Row: excelRow, Message: "land_area: " + err.Error()}
+	}
+	structureHeight, err := parseOptionalFloat(cell(row, index, "structure_height"))
+	if err != nil {
+		return station.ImportRow{}, &Issue{Row: excelRow, Message: "structure_height: " + err.Error()}
+	}
+
+	return station.ImportRow{
+		Row: excelRow,
+		Data: station.StationData{
+			SiteID:             cell(row, index, "site_id"),
+			Technology:         cell(row, index, "technology"),
+			EndID:              cell(row, index, "end_id"),
+			ContractAreaType:   cell(row, index, "contract_area_type"),
+			AreaHolder:         cell(row, index, "area_holder"),
+			InfrastructureType: cell(row, index, "infrastructure_type"),
+			EVType:             cell(row, index, "ev_type"),
+			Address:            cell(row, index, "address"),
+			Neighborhood:       cell(row, index, "neighborhood"),
+			City:               cell(row, index, "city"),
+			State:              cell(row, index, "state"),
+			ZipCode:            cell(row, index, "zip_code"),
+			Regional:           cell(row, index, "regional"),
+			Latitude:           latitude,
+			Longitude:          longitude,
+			Status:             cell(row, index, "status"),
+			TowerType:          cell(row, index, "tower_type"),
+			NominalAEV:         cell(row, index, "nominal_aev"),
+			StationIDRef:       cell(row, index, "station_id"),
+			EVSupplier:         cell(row, index, "ev_supplier"),
+			LandArea:           landArea,
+			StructureHeight:    structureHeight,
+			Observation:        cell(row, index, "observation"),
+		},
+	}, nil
 }
 
 func stationHeaderKey(header string) string {

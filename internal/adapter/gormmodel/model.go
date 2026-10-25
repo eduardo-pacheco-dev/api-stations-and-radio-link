@@ -60,3 +60,31 @@ type RadioLink struct {
 func (RadioLink) TableName() string {
 	return "radio_links"
 }
+
+// ImportJob maps to the import_jobs table.
+type ImportJob struct {
+	ID            string     `gorm:"column:id;primaryKey;size:36"`
+	Entity        string     `gorm:"column:entity;size:20;not null"`
+	Status        string     `gorm:"column:status;size:20;not null;index"`
+	Mode          string     `gorm:"column:mode;size:20;not null"`
+	DryRun        bool       `gorm:"column:dry_run;not null"`
+	FileName      string     `gorm:"column:file_name;size:255;not null;default:''"`
+	FilePath      string     `gorm:"column:file_path;size:512;not null;default:''"`
+	TotalRows     int64      `gorm:"column:total_rows;not null;default:0"`
+	ProcessedRows int64      `gorm:"column:processed_rows;not null;default:0"`
+	ValidRows     int64      `gorm:"column:valid_rows;not null;default:0"`
+	ImportedRows  int64      `gorm:"column:imported_rows;not null;default:0"`
+	UpdatedRows   int64      `gorm:"column:updated_rows;not null;default:0"`
+	FailedRows    int64      `gorm:"column:failed_rows;not null;default:0"`
+	ErrorsJSON    string     `gorm:"column:errors_json;type:text;not null"`
+	ErrorMessage  string     `gorm:"column:error_message;type:text;not null"`
+	CreatedAt     time.Time  `gorm:"column:created_at;autoCreateTime;index"`
+	StartedAt     *time.Time `gorm:"column:started_at"`
+	FinishedAt    *time.Time `gorm:"column:finished_at"`
+	UpdatedAt     time.Time  `gorm:"column:updated_at;autoUpdateTime"`
+}
+
+// TableName returns the import_jobs table name.
+func (ImportJob) TableName() string {
+	return "import_jobs"
+}

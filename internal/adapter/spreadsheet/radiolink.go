@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/xuri/excelize/v2"
+
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
 )
 
@@ -39,37 +41,13 @@ func ParseRadioLinks(reader io.Reader) (RadioLinkResult, error) {
 		result.Total++
 		excelRow := position + 2
 
-		frequency, err := parseOptionalFloat(cell(row, index, "frequency_mhz"))
-		if err != nil {
-			result.Issues = append(result.Issues, Issue{Row: excelRow, Message: "frequency_mhz: " + err.Error()})
-			continue
-		}
-		capacity, err := parseOptionalFloat(cell(row, index, "capacity_mbps"))
-		if err != nil {
-			result.Issues = append(result.Issues, Issue{Row: excelRow, Message: "capacity_mbps: " + err.Error()})
-			continue
-		}
-		distance, err := parseOptionalFloat(cell(row, index, "distance_km"))
-		if err != nil {
-			result.Issues = append(result.Issues, Issue{Row: excelRow, Message: "distance_km: " + err.Error()})
+		importRow, issue := buildRadioLinkRow(excelRow, row, index)
+		if issue != nil {
+			result.Issues = append(result.Issues, *issue)
 			continue
 		}
 
-		result.Rows = append(result.Rows, radiolink.ImportRow{
-			Row: excelRow,
-			Data: radiolink.RadioLinkData{
-				LinkID:         cell(row, index, "link_id"),
-				Name:           cell(row, index, "name"),
-				StationASiteID: cell(row, index, "station_a_site_id"),
-				StationBSiteID: cell(row, index, "station_b_site_id"),
-				Technology:     cell(row, index, "technology"),
-				FrequencyMHz:   frequency,
-				CapacityMbps:   capacity,
-				DistanceKM:     distance,
-				Status:         cell(row, index, "status"),
-				Observation:    cell(row, index, "observation"),
-			},
-		})
+		result.Rows = append(result.Rows, importRow)
 	}
 
 	if len(result.Rows) == 0 && len(result.Issues) == 0 {
@@ -77,6 +55,108 @@ func ParseRadioLinks(reader io.Reader) (RadioLinkResult, error) {
 	}
 
 	return result, nil
+}
+
+// StreamRadioLinks reads the first sheet row by row without loading the whole
+// workbook into memory. It is intended for large import jobs.
+func StreamRadioLinks(
+	filePath string,
+	onRow func(radiolink.ImportRow) error,
+	onIssue func(Issue) error,
+) (int, error) {
+	file, err := excelize.OpenFile(filePath, excelize.Options{RawCellValue: true})
+	if err != nil {
+		return 0, fmt.Errorf("open excel file: %w", err)
+	}
+	defer file.Close()
+
+	sheets := file.GetSheetList()
+	if len(sheets) == 0 {
+		return 0, fmt.Errorf("excel file has no sheets")
+	}
+
+	rows, err := file.Rows(sheets[0])
+	if err != nil {
+		return 0, fmt.Errorf("read sheet %q: %w", sheets[0], err)
+	}
+	defer rows.Close()
+
+	if !rows.Next() {
+		return 0, fmt.Errorf("excel file has no rows")
+	}
+	headers, err := rows.Columns()
+	if err != nil {
+		return 0, fmt.Errorf("read header: %w", err)
+	}
+
+	index := mapHeaders(headers, radioLinkHeaderKey)
+	if err := requireHeaders(index, "link_id", "station_a_site_id", "station_b_site_id"); err != nil {
+		return 0, err
+	}
+
+	total := 0
+	excelRow := 1
+	for rows.Next() {
+		excelRow++
+		row, err := rows.Columns()
+		if err != nil {
+			return total, fmt.Errorf("read row %d: %w", excelRow, err)
+		}
+		if blankRow(row) {
+			continue
+		}
+
+		total++
+		importRow, issue := buildRadioLinkRow(excelRow, row, index)
+		if issue != nil {
+			if err := onIssue(*issue); err != nil {
+				return total, err
+			}
+			continue
+		}
+		if err := onRow(importRow); err != nil {
+			return total, err
+		}
+	}
+	if err := rows.Error(); err != nil {
+		return total, fmt.Errorf("iterate rows: %w", err)
+	}
+	if total == 0 {
+		return 0, fmt.Errorf("excel file has no data rows")
+	}
+
+	return total, nil
+}
+
+func buildRadioLinkRow(excelRow int, row []string, index map[string]int) (radiolink.ImportRow, *Issue) {
+	frequency, err := parseOptionalFloat(cell(row, index, "frequency_mhz"))
+	if err != nil {
+		return radiolink.ImportRow{}, &Issue{Row: excelRow, Message: "frequency_mhz: " + err.Error()}
+	}
+	capacity, err := parseOptionalFloat(cell(row, index, "capacity_mbps"))
+	if err != nil {
+		return radiolink.ImportRow{}, &Issue{Row: excelRow, Message: "capacity_mbps: " + err.Error()}
+	}
+	distance, err := parseOptionalFloat(cell(row, index, "distance_km"))
+	if err != nil {
+		return radiolink.ImportRow{}, &Issue{Row: excelRow, Message: "distance_km: " + err.Error()}
+	}
+
+	return radiolink.ImportRow{
+		Row: excelRow,
+		Data: radiolink.RadioLinkData{
+			LinkID:         cell(row, index, "link_id"),
+			Name:           cell(row, index, "name"),
+			StationASiteID: cell(row, index, "station_a_site_id"),
+			StationBSiteID: cell(row, index, "station_b_site_id"),
+			Technology:     cell(row, index, "technology"),
+			FrequencyMHz:   frequency,
+			CapacityMbps:   capacity,
+			DistanceKM:     distance,
+			Status:         cell(row, index, "status"),
+			Observation:    cell(row, index, "observation"),
+		},
+	}, nil
 }
 
 func radioLinkHeaderKey(header string) string {

@@ -42,7 +42,11 @@ func Open(t *testing.T) *gorm.DB {
 	if err := db.Exec("PRAGMA foreign_keys = ON").Error; err != nil {
 		t.Fatalf("enable sqlite foreign keys: %v", err)
 	}
-	if err := db.AutoMigrate(&gormmodel.Station{}, &gormmodel.RadioLink{}); err != nil {
+	if err := db.AutoMigrate(
+		&gormmodel.Station{},
+		&gormmodel.RadioLink{},
+		&gormmodel.ImportJob{},
+	); err != nil {
 		t.Fatalf("migrate sqlite schema: %v", err)
 	}
 

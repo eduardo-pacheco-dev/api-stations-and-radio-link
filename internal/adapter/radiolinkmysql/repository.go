@@ -136,6 +136,68 @@ func (r *Repository) Delete(ctx context.Context, linkID string) error {
 	return nil
 }
 
+// InsertBatch inserts a batch of radio links.
+func (r *Repository) InsertBatch(ctx context.Context, rows []radiolink.RadioLinkData) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	models := make([]gormmodel.RadioLink, 0, len(rows))
+	for _, data := range rows {
+		models = append(models, toModel(data))
+	}
+
+	if err := r.db.WithContext(ctx).
+		Omit(clause.Associations).
+		CreateInBatches(&models, len(models)).Error; err != nil {
+		return fmt.Errorf("insert radio link batch: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertBatch inserts or updates a batch of radio links and returns inserted/updated counts.
+func (r *Repository) UpsertBatch(ctx context.Context, rows []radiolink.RadioLinkData) (int, int, error) {
+	if len(rows) == 0 {
+		return 0, 0, nil
+	}
+
+	models := make([]gormmodel.RadioLink, 0, len(rows))
+	ids := make([]string, 0, len(rows))
+	for _, data := range rows {
+		models = append(models, toModel(data))
+		ids = append(ids, data.LinkID)
+	}
+
+	var existing []string
+	if err := r.db.WithContext(ctx).
+		Model(&gormmodel.RadioLink{}).
+		Where("link_id IN ?", ids).
+		Pluck("link_id", &existing).Error; err != nil {
+		return 0, 0, fmt.Errorf("load existing radio links: %w", err)
+	}
+
+	err := r.db.WithContext(ctx).
+		Omit(clause.Associations).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "link_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"name", "station_a_site_id", "station_b_site_id", "technology",
+				"frequency_mhz", "capacity_mbps", "distance_km", "status",
+				"observation", "updated_at",
+			}),
+		}).
+		CreateInBatches(&models, len(models)).Error
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert radio link batch: %w", err)
+	}
+
+	updated := len(existing)
+	inserted := len(models) - updated
+
+	return inserted, updated, nil
+}
+
 func mapWriteError(err error, linkID string) error {
 	switch {
 	case gormerr.IsDuplicate(err):

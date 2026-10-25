@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/gormerr"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/gormmodel"
@@ -151,6 +152,67 @@ func (r *Repository) Delete(ctx context.Context, siteID string) error {
 	}
 
 	return nil
+}
+
+// InsertBatch inserts a batch of stations.
+func (r *Repository) InsertBatch(ctx context.Context, rows []station.StationData) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	models := make([]gormmodel.Station, 0, len(rows))
+	for _, data := range rows {
+		models = append(models, toModel(data))
+	}
+
+	if err := r.db.WithContext(ctx).CreateInBatches(&models, len(models)).Error; err != nil {
+		return fmt.Errorf("insert station batch: %w", err)
+	}
+
+	return nil
+}
+
+// UpsertBatch inserts or updates a batch of stations and returns inserted/updated counts.
+func (r *Repository) UpsertBatch(ctx context.Context, rows []station.StationData) (int, int, error) {
+	if len(rows) == 0 {
+		return 0, 0, nil
+	}
+
+	models := make([]gormmodel.Station, 0, len(rows))
+	ids := make([]string, 0, len(rows))
+	for _, data := range rows {
+		models = append(models, toModel(data))
+		ids = append(ids, data.SiteID)
+	}
+
+	var existing []string
+	if err := r.db.WithContext(ctx).
+		Model(&gormmodel.Station{}).
+		Where("site_id IN ?", ids).
+		Pluck("site_id", &existing).Error; err != nil {
+		return 0, 0, fmt.Errorf("load existing stations: %w", err)
+	}
+
+	err := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "site_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"technology", "end_id", "contract_area_type", "area_holder",
+				"infrastructure_type", "ev_type", "address", "neighborhood",
+				"city", "state", "zip_code", "regional", "latitude", "longitude",
+				"status", "tower_type", "nominal_aev", "station_id", "ev_supplier",
+				"land_area", "structure_height", "observation", "updated_at",
+			}),
+		}).
+		CreateInBatches(&models, len(models)).Error
+	if err != nil {
+		return 0, 0, fmt.Errorf("upsert station batch: %w", err)
+	}
+
+	updated := len(existing)
+	inserted := len(models) - updated
+
+	return inserted, updated, nil
 }
 
 func toModel(data station.StationData) gormmodel.Station {
