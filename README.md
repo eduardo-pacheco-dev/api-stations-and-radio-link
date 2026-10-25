@@ -416,6 +416,20 @@ Obrigatórias: `STATION_A_SITE_ID` e `STATION_B_SITE_ID`. Se `LINK_ID` ou
 
 > Para preservar zeros à esquerda no CEP, formate a coluna como texto no Excel.
 
+### Templates
+
+Baixe o template `.xlsx` com todas as colunas aceitas:
+
+```bash
+curl -OJ http://localhost:8080/api/v1/stations/import/template
+curl -OJ http://localhost:8080/api/v1/radio-links/import/template
+```
+
+Os arquivos são gerados com:
+
+- aba principal com os cabeçalhos e formatação
+- aba `Instrucoes` com campos obrigatórios e exemplos
+
 ### Jobs para arquivos grandes
 
 Arquivos com centenas de milhares de linhas devem usar os endpoints assíncronos:

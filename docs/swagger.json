@@ -386,6 +386,32 @@
                 }
             }
         },
+        "/radio-links/import/template": {
+            "get": {
+                "description": "Returns an .xlsx template with the accepted radio link columns.",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "radio-links"
+                ],
+                "summary": "Download radio link import template",
+                "responses": {
+                    "200": {
+                        "description": "Excel template",
+                        "schema": {
+                            "type": "file"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/radio-links/{linkID}": {
             "get": {
                 "description": "Returns a radio link by link_id.",
@@ -758,6 +784,32 @@
                         "description": "Request Entity Too Large",
                         "schema": {
                             "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/stations/import/template": {
+            "get": {
+                "description": "Returns an .xlsx template with the accepted station columns.",
+                "produces": [
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                ],
+                "tags": [
+                    "stations"
+                ],
+                "summary": "Download station import template",
+                "responses": {
+                    "200": {
+                        "description": "Excel template",
+                        "schema": {
+                            "type": "file"
                         }
                     },
                     "500": {

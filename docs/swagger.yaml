@@ -851,6 +851,23 @@ paths:
       summary: Create radio link import job
       tags:
       - import-jobs
+  /radio-links/import/template:
+    get:
+      description: Returns an .xlsx template with the accepted radio link columns.
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        "200":
+          description: Excel template
+          schema:
+            type: file
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Download radio link import template
+      tags:
+      - radio-links
   /stations:
     get:
       description: Returns a paginated list of stations.
@@ -1100,6 +1117,23 @@ paths:
       summary: Create station import job
       tags:
       - import-jobs
+  /stations/import/template:
+    get:
+      description: Returns an .xlsx template with the accepted station columns.
+      produces:
+      - application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+      responses:
+        "200":
+          description: Excel template
+          schema:
+            type: file
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Download station import template
+      tags:
+      - stations
   /status:
     get:
       description: Returns the API status and verifies database connectivity.

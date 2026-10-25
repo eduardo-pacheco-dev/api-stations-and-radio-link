@@ -38,6 +38,7 @@ func NewStationHandler(service StationService, logger *slog.Logger) *StationHand
 func (h *StationHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/stations", h.Create)
 	mux.HandleFunc("POST /api/v1/stations/import", h.Import)
+	mux.HandleFunc("GET /api/v1/stations/import/template", h.ExportTemplate)
 	mux.HandleFunc("GET /api/v1/stations", h.List)
 	mux.HandleFunc("GET /api/v1/stations/{siteID}", h.Get)
 	mux.HandleFunc("PUT /api/v1/stations/{siteID}", h.Update)
@@ -131,6 +132,29 @@ func (h *StationHandler) Import(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, result, h.logger)
+}
+
+// ExportTemplate godoc
+//
+//	@Summary		Download station import template
+//	@Description	Returns an .xlsx template with the accepted station columns.
+//	@Tags			stations
+//	@Produce		application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+//	@Success		200	{file}	file	"Excel template"
+//	@Failure		500	{object}	httpapi.ErrorResponse
+//	@Router			/stations/import/template [get]
+func (h *StationHandler) ExportTemplate(w http.ResponseWriter, r *http.Request) {
+	content, err := spreadsheet.StationTemplate()
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "build station template", "error", err)
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{
+			Error:   "internal_server_error",
+			Message: "could not generate template",
+		}, h.logger)
+		return
+	}
+
+	writeXLSX(w, "stations-template.xlsx", content)
 }
 
 // List godoc

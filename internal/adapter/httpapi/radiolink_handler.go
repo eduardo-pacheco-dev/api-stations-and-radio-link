@@ -38,6 +38,7 @@ func NewRadioLinkHandler(service RadioLinkService, logger *slog.Logger) *RadioLi
 func (h *RadioLinkHandler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/v1/radio-links", h.Create)
 	mux.HandleFunc("POST /api/v1/radio-links/import", h.Import)
+	mux.HandleFunc("GET /api/v1/radio-links/import/template", h.ExportTemplate)
 	mux.HandleFunc("GET /api/v1/radio-links", h.List)
 	mux.HandleFunc("GET /api/v1/radio-links/{linkID}", h.Get)
 	mux.HandleFunc("PUT /api/v1/radio-links/{linkID}", h.Update)
@@ -132,6 +133,29 @@ func (h *RadioLinkHandler) Import(w http.ResponseWriter, r *http.Request) {
 	})
 
 	writeJSON(w, http.StatusOK, result, h.logger)
+}
+
+// ExportTemplate godoc
+//
+//	@Summary		Download radio link import template
+//	@Description	Returns an .xlsx template with the accepted radio link columns.
+//	@Tags			radio-links
+//	@Produce		application/vnd.openxmlformats-officedocument.spreadsheetml.sheet
+//	@Success		200	{file}	file	"Excel template"
+//	@Failure		500	{object}	httpapi.ErrorResponse
+//	@Router			/radio-links/import/template [get]
+func (h *RadioLinkHandler) ExportTemplate(w http.ResponseWriter, r *http.Request) {
+	content, err := spreadsheet.RadioLinkTemplate()
+	if err != nil {
+		h.logger.ErrorContext(r.Context(), "build radio link template", "error", err)
+		writeJSON(w, http.StatusInternalServerError, ErrorResponse{
+			Error:   "internal_server_error",
+			Message: "could not generate template",
+		}, h.logger)
+		return
+	}
+
+	writeXLSX(w, "radio-links-template.xlsx", content)
 }
 
 // List godoc
