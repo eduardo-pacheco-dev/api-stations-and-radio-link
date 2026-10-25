@@ -12,7 +12,7 @@ func TestOpen(t *testing.T) {
 
 	db, err := database.Open(database.Config{
 		Driver:          "mysql",
-		DSN:             "root:admin@tcp(127.0.0.1:3306)/api_stations_radio_link?parseTime=true",
+		DSN:             "root:admin@tcp(127.0.0.1:1)/unreachable?parseTime=true",
 		MaxOpenConns:    7,
 		MaxIdleConns:    3,
 		ConnMaxLifetime: time.Minute,

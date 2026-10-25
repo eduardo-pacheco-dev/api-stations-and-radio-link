@@ -46,8 +46,9 @@ func Open(cfg Config) (*gorm.DB, error) {
 		Conn:                      sqlDB,
 		SkipInitializeWithVersion: true,
 	}), &gorm.Config{
-		TranslateError: true,
-		Logger:         logger.Default.LogMode(logger.Silent),
+		TranslateError:       true,
+		DisableAutomaticPing: true,
+		Logger:               logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
 		_ = sqlDB.Close()
