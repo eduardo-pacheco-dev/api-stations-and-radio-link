@@ -1,5 +1,82 @@
 basePath: /api/v1
 definitions:
+  document.Document:
+    properties:
+      category:
+        example: licenca
+        type: string
+      content_type:
+        example: application/pdf
+        type: string
+      created_at:
+        type: string
+      description:
+        example: Licença válida até 2027
+        type: string
+      download_url:
+        example: /api/v1/documents/6f0e6e6e-.../download
+        type: string
+      file_name:
+        example: licenca.pdf
+        type: string
+      id:
+        example: 6f0e6e6e-...
+        type: string
+      owner_id:
+        example: TSHG01
+        type: string
+      owner_type:
+        allOf:
+        - $ref: '#/definitions/document.OwnerType'
+        enum:
+        - station
+        - radio_link
+        example: station
+      size_bytes:
+        example: 102400
+        type: integer
+      title:
+        example: Licença de operação
+        type: string
+      updated_at:
+        type: string
+    type: object
+  document.OwnerType:
+    enum:
+    - station
+    - radio_link
+    type: string
+    x-enum-varnames:
+    - OwnerTypeStation
+    - OwnerTypeRadioLink
+  document.Page:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/document.Document'
+        type: array
+      page:
+        example: 1
+        type: integer
+      page_size:
+        example: 20
+        type: integer
+      total:
+        example: 1
+        type: integer
+      total_pages:
+        example: 1
+        type: integer
+    type: object
+  document.UpdateInput:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      title:
+        type: string
+    type: object
   httpapi.ErrorResponse:
     properties:
       error:
@@ -504,6 +581,224 @@ info:
   title: API Stations and Radio Link
   version: "1.0"
 paths:
+  /documents:
+    get:
+      description: Returns a paginated list of documents.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size (max 100)
+        in: query
+        name: page_size
+        type: integer
+      - description: station or radio_link
+        in: query
+        name: owner_type
+        type: string
+      - description: Station site_id or radio link link_id
+        in: query
+        name: owner_id
+        type: string
+      - description: Search title, category, description or file name
+        in: query
+        name: search
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/document.Page'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: List documents
+      tags:
+      - documents
+    post:
+      consumes:
+      - multipart/form-data
+      description: Uploads a document attached to a station or radio link.
+      parameters:
+      - description: station or radio_link
+        in: formData
+        name: owner_type
+        required: true
+        type: string
+      - description: Station site_id or radio link link_id
+        in: formData
+        name: owner_id
+        required: true
+        type: string
+      - description: Document title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Document category
+        in: formData
+        name: category
+        type: string
+      - description: Document description
+        in: formData
+        name: description
+        type: string
+      - description: Document file
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/document.Document'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "413":
+          description: Request Entity Too Large
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Create document
+      tags:
+      - documents
+  /documents/{documentID}:
+    delete:
+      description: Deletes document metadata and its stored file.
+      parameters:
+      - description: Document ID
+        in: path
+        name: documentID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Delete document
+      tags:
+      - documents
+    get:
+      description: Returns document metadata.
+      parameters:
+      - description: Document ID
+        in: path
+        name: documentID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/document.Document'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Get document
+      tags:
+      - documents
+    put:
+      consumes:
+      - application/json
+      description: Updates title, category and description. The file and owner cannot
+        be changed.
+      parameters:
+      - description: Document ID
+        in: path
+        name: documentID
+        required: true
+        type: string
+      - description: Document metadata
+        in: body
+        name: document
+        required: true
+        schema:
+          $ref: '#/definitions/document.UpdateInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/document.Document'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Update document metadata
+      tags:
+      - documents
+  /documents/{documentID}/download:
+    get:
+      description: Downloads the stored file.
+      parameters:
+      - description: Document ID
+        in: path
+        name: documentID
+        required: true
+        type: string
+      produces:
+      - application/octet-stream
+      responses:
+        "200":
+          description: Document file
+          schema:
+            type: file
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Download document
+      tags:
+      - documents
   /healthz:
     get:
       description: Returns 200 when the HTTP server is running, independently of database

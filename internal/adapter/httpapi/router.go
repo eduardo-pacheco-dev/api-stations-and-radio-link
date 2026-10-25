@@ -12,6 +12,7 @@ type RouterConfig struct {
 	StationHandler   *StationHandler
 	RadioLinkHandler *RadioLinkHandler
 	ImportJobHandler *ImportJobHandler
+	DocumentHandler  *DocumentHandler
 	SwaggerHandler   http.Handler
 	Logger           *slog.Logger
 }
@@ -37,6 +38,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	if cfg.ImportJobHandler != nil {
 		cfg.ImportJobHandler.Register(mux)
+	}
+
+	if cfg.DocumentHandler != nil {
+		cfg.DocumentHandler.Register(mux)
 	}
 
 	if cfg.SwaggerHandler != nil {

@@ -88,3 +88,24 @@ type ImportJob struct {
 func (ImportJob) TableName() string {
 	return "import_jobs"
 }
+
+// Document maps to the documents table.
+type Document struct {
+	ID          string    `gorm:"column:id;primaryKey;size:36"`
+	OwnerType   string    `gorm:"column:owner_type;size:20;not null;index:idx_documents_owner,priority:1"`
+	OwnerID     string    `gorm:"column:owner_id;size:50;not null;index:idx_documents_owner,priority:2"`
+	Title       string    `gorm:"column:title;size:200;not null"`
+	Category    string    `gorm:"column:category;size:100;not null;default:''"`
+	Description string    `gorm:"column:description;type:text;not null"`
+	FileName    string    `gorm:"column:file_name;size:255;not null"`
+	ContentType string    `gorm:"column:content_type;size:100;not null"`
+	SizeBytes   int64     `gorm:"column:size_bytes;not null"`
+	FilePath    string    `gorm:"column:file_path;size:512;not null"`
+	CreatedAt   time.Time `gorm:"column:created_at;autoCreateTime;index"`
+	UpdatedAt   time.Time `gorm:"column:updated_at;autoUpdateTime"`
+}
+
+// TableName returns the documents table name.
+func (Document) TableName() string {
+	return "documents"
+}

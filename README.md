@@ -25,6 +25,7 @@ o banco de dados.
 ├── internal/
 │   ├── adapter/
 │   │   ├── database/                       # abertura GORM, pool, migrações
+│   │   ├── documentmysql/                  # repositório GORM de documentos
 │   │   ├── gormerr/                        # classificação de erros GORM
 │   │   ├── gormmodel/                      # modelos GORM
 │   │   ├── httpapi/                        # rotas, handlers, middleware
@@ -35,6 +36,7 @@ o banco de dados.
 │   │   ├── sqlpinger/                      # adapter de ping no banco
 │   │   └── stationmysql/                   # repositório GORM de stations
 │   ├── config/                             # configuração via variáveis de ambiente
+│   ├── document/                           # domínio, storage e casos de uso
 │   ├── importjob/                          # domínio, storage, fila e runner
 │   ├── radiolink/                          # domínio, casos de uso e porta Repository
 │   ├── station/                            # domínio, casos de uso e porta Repository
@@ -342,6 +344,58 @@ Nesse caso a API gera:
 }
 ```
 
+## Documents
+
+Documentos podem ser vinculados a uma station (`site_id`) ou a um radio link
+(`link_id`).
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `POST` | `/api/v1/documents` | Envia documento |
+| `GET` | `/api/v1/documents` | Lista com filtros |
+| `GET` | `/api/v1/documents/{documentID}` | Metadados |
+| `PUT` | `/api/v1/documents/{documentID}` | Atualiza metadados |
+| `DELETE` | `/api/v1/documents/{documentID}` | Remove metadados e arquivo |
+| `GET` | `/api/v1/documents/{documentID}/download` | Baixa o arquivo |
+
+Upload:
+
+```bash
+curl -X POST http://localhost:8080/api/v1/documents \
+  -F "owner_type=station" \
+  -F "owner_id=TSHG01" \
+  -F "title=Licença de operação" \
+  -F "category=licenca" \
+  -F "description=Licença válida até 2027" \
+  -F "file=@licenca.pdf"
+```
+
+Campos:
+
+- `owner_type`: `station` ou `radio_link`
+- `owner_id`: `site_id` ou `link_id`
+- `title`: obrigatório
+- `category` e `description`: opcionais
+- `file`: obrigatório
+
+A entidade referenciada precisa existir. A listagem aceita `owner_type`,
+`owner_id`, `search`, `page` e `page_size`.
+
+As respostas de criação, consulta, atualização e listagem incluem:
+
+```json
+{
+  "download_url": "/api/v1/documents/6f0e6e6e-.../download"
+}
+```
+
+Configuração:
+
+```env
+DOCUMENT_DIR=./data/documents
+DOCUMENT_MAX_BYTES=52428800
+```
+
 ## Importação em massa (Excel)
 
 Dois endpoints aceitam arquivos `.xlsx` (primeira aba):
@@ -531,6 +585,8 @@ O seed de desenvolvimento é idempotente e aplicado nesta ordem:
 
 - `scripts/seed.sql`: 15 stations de exemplo
 - `scripts/seed_radio_links.sql`: 7 radio links entre essas stations
+- 2 documentos de exemplo vinculados a `TSHG01` e `RL-0001`, com arquivos
+  gerados em `DOCUMENT_DIR`
 
 ```bash
 make seed
@@ -617,6 +673,8 @@ Todas as variáveis estão documentadas em `.env.example`. As principais:
 | `IMPORT_BATCH_SIZE` | `1000` | Linhas por lote (máx. 1000) |
 | `IMPORT_ERROR_LIMIT` | `1000` | Erros armazenados por job |
 | `IMPORT_WORKERS` | `1` | Workers de importação |
+| `DOCUMENT_DIR` | `./data/documents` | Diretório dos documentos |
+| `DOCUMENT_MAX_BYTES` | `52428800` | Limite de upload de documentos |
 
 ## CI/CD e deploy com PM2
 

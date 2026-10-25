@@ -46,6 +46,7 @@ func Open(t *testing.T) *gorm.DB {
 		&gormmodel.Station{},
 		&gormmodel.RadioLink{},
 		&gormmodel.ImportJob{},
+		&gormmodel.Document{},
 	); err != nil {
 		t.Fatalf("migrate sqlite schema: %v", err)
 	}

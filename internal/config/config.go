@@ -17,6 +17,7 @@ type Config struct {
 	HTTP     HTTP
 	Database Database
 	Import   Import
+	Document Document
 }
 
 // App holds application metadata used in logs and in the status endpoint.
@@ -59,6 +60,12 @@ type Import struct {
 	Workers    int
 }
 
+// Document holds document upload settings.
+type Document struct {
+	Dir      string
+	MaxBytes int64
+}
+
 const (
 	defaultAppName        = "api-stations-and-radio-link"
 	defaultAppVersion     = "1.0.0"
@@ -85,6 +92,8 @@ const (
 	defaultImportBatch    = 1000
 	defaultImportErrors   = 1000
 	defaultImportWorkers  = 1
+	defaultDocumentDir    = "./data/documents"
+	defaultDocumentBytes  = int64(50 << 20)
 )
 
 type lookupFunc func(key string) (string, bool)
@@ -133,6 +142,10 @@ func load(lookup lookupFunc) (Config, error) {
 			BatchSize:  envInt(lookup, "IMPORT_BATCH_SIZE", defaultImportBatch),
 			ErrorLimit: envInt(lookup, "IMPORT_ERROR_LIMIT", defaultImportErrors),
 			Workers:    envInt(lookup, "IMPORT_WORKERS", defaultImportWorkers),
+		},
+		Document: Document{
+			Dir:      env("DOCUMENT_DIR", defaultDocumentDir),
+			MaxBytes: envInt64(lookup, "DOCUMENT_MAX_BYTES", defaultDocumentBytes),
 		},
 	}
 
@@ -187,6 +200,12 @@ func (c Config) validate() error {
 	}
 	if c.Import.Workers < 1 {
 		problems = append(problems, errors.New("IMPORT_WORKERS must be at least 1"))
+	}
+	if strings.TrimSpace(c.Document.Dir) == "" {
+		problems = append(problems, errors.New("DOCUMENT_DIR must not be empty"))
+	}
+	if c.Document.MaxBytes <= 0 {
+		problems = append(problems, errors.New("DOCUMENT_MAX_BYTES must be positive"))
 	}
 
 	return errors.Join(problems...)

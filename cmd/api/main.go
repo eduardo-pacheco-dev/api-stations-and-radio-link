@@ -17,6 +17,7 @@ import (
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/docs"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/documentmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/httpapi"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/importjobmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/importprocessor"
@@ -24,6 +25,7 @@ import (
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqlpinger"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/stationmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/config"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/document"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/importjob"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
@@ -113,12 +115,21 @@ func run() error {
 
 	importJobHandler := httpapi.NewImportJobHandler(jobService, cfg.Import.MaxBytes, logger)
 
+	documentRepository := documentmysql.NewRepository(db)
+	documentStorage, err := document.NewStorage(cfg.Document.Dir, cfg.Document.MaxBytes)
+	if err != nil {
+		return fmt.Errorf("create document storage: %w", err)
+	}
+	documentService := document.NewService(documentRepository, documentStorage)
+	documentHandler := httpapi.NewDocumentHandler(documentService, cfg.Document.MaxBytes, logger)
+
 	statusHandler := httpapi.NewStatusHandler(statusService, logger)
 	router := httpapi.NewRouter(httpapi.RouterConfig{
 		StatusHandler:    statusHandler,
 		StationHandler:   stationHandler,
 		RadioLinkHandler: radioLinkHandler,
 		ImportJobHandler: importJobHandler,
+		DocumentHandler:  documentHandler,
 		SwaggerHandler:   httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")),
 		Logger:           logger,
 	})
