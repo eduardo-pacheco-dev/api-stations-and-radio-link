@@ -113,8 +113,11 @@ func (d StationData) Validate() error {
 			problems = append(problems, "state must be a valid Brazilian UF")
 		}
 	}
-	if (d.Latitude == nil) != (d.Longitude == nil) {
-		problems = append(problems, "latitude and longitude must be provided together")
+	if d.Latitude == nil {
+		problems = append(problems, "latitude is required")
+	}
+	if d.Longitude == nil {
+		problems = append(problems, "longitude is required")
 	}
 	if d.Latitude != nil && (*d.Latitude < -90 || *d.Latitude > 90) {
 		problems = append(problems, "latitude must be between -90 and 90")

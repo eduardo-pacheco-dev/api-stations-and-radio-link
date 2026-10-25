@@ -111,8 +111,8 @@ INSERT INTO stations (
         'PEND14', 'LTE', 'GOPEND_0014', 'Compartilhado', 'AMERICAN TOWER',
         'Greenfield', 'TORRE METALICA QUADRADA',
         'RODOVIA BR-060, KM 10', 'ZONA RURAL', 'ANAPOLIS', 'GO', '75000000',
-        'TCO', NULL, NULL, 'Em processo', 'TORRE METALICA QUADRADA', '',
-        'TRHPE14', 'HUAWEI', NULL, NULL, 'COORDENADAS PENDENTES'
+        'TCO', -16.328600, -48.953100, 'Em processo', 'TORRE METALICA QUADRADA', '',
+        'TRHPE14', 'HUAWEI', NULL, NULL, 'SITE EM PROCESSO'
     )
 ON DUPLICATE KEY UPDATE
     technology = VALUES(technology),

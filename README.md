@@ -389,7 +389,8 @@ STATION_ID, FORNECEDOR_DE_EV, AREA_DO_SOLO, ALTURA_DA_ESTRUTURA,
 OBSERVACAO_THQ
 ```
 
-`SITE ID` é a única coluna obrigatória. Números aceitam vírgula decimal
+`SITE ID`, `LATITUDE` e `LONGITUDE` são as únicas colunas obrigatórias. Números
+aceitam vírgula decimal
 (`-18,345528`) e separador de milhar com ponto (`18.000,5`).
 
 ### Colunas de radio links
@@ -482,8 +483,8 @@ Todos os endpoints validam a entrada de forma consistente:
 
 Regras de domínio:
 
-- Station: `site_id` obrigatório, UF válida, latitude/longitude em conjunto e
-  dentro dos limites, área/altura não negativas
+- Station: `site_id`, `latitude` e `longitude` obrigatórios; UF válida e
+  coordenadas dentro dos limites; área/altura não negativas
 - Radio link: pontas A e B obrigatórias e diferentes, frequência e capacidade
   positivas, distância não negativa
 - `GET`/`DELETE` validam o identificador de path

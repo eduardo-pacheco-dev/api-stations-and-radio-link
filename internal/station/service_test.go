@@ -160,7 +160,14 @@ func TestService_Create(t *testing.T) {
 			wantErr: station.ErrValidation,
 		},
 		{
-			name: "latitude without longitude",
+			name: "missing latitude",
+			mutate: func(data *station.StationData) {
+				data.Latitude = nil
+			},
+			wantErr: station.ErrValidation,
+		},
+		{
+			name: "missing longitude",
 			mutate: func(data *station.StationData) {
 				data.Longitude = nil
 			},
