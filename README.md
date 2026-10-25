@@ -819,7 +819,7 @@ Configure em **Settings → Secrets and variables → Actions** (ou no environme
 | `DEPLOY_PORT` | não | `22` | Porta SSH |
 | `DEPLOY_PATH` | não | `/root/app/api-stations-and-radio-link` | Diretório de deploy |
 | `PM2_APP_NAME` | não | `api-stations-and-radio-link` | Nome do processo no PM2 |
-| `HEALTHCHECK_URL` | não | `http://127.0.0.1:8080/api/v1/healthz` | URL de healthcheck |
+| `HEALTHCHECK_URL` | não | derivado de `HTTP_ADDR` | URL de healthcheck |
 
 Para gerar `DEPLOY_KNOWN_HOSTS`:
 

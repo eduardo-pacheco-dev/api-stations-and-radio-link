@@ -6,8 +6,8 @@ PM2_APP_NAME="${PM2_APP_NAME:-${SERVICE_NAME:-$APP_NAME}}"
 DEPLOY_DIR="${DEPLOY_DIR:-/root/app/api-stations-and-radio-link}"
 BIN_SOURCE="${BIN_SOURCE:-$DEPLOY_DIR/incoming/api}"
 BINARY_NAME="${BINARY_NAME:-api}"
-HEALTHCHECK_URL="${HEALTHCHECK_URL-http://127.0.0.1:8080/api/v1/healthz}"
-STATUS_URL="${STATUS_URL-http://127.0.0.1:8080/api/v1/status}"
+HEALTHCHECK_URL="${HEALTHCHECK_URL:-}"
+STATUS_URL="${STATUS_URL:-}"
 HEALTHCHECK_RETRIES="${HEALTHCHECK_RETRIES:-15}"
 HEALTHCHECK_INTERVAL="${HEALTHCHECK_INTERVAL:-2}"
 KEEP_RELEASES="${KEEP_RELEASES:-5}"
@@ -69,6 +69,24 @@ resolve_pm2() {
 PM2_BIN="$(resolve_pm2)" || die "pm2 not found; set PM2_BIN=/absolute/path/to/pm2"
 export PATH="$(dirname "$PM2_BIN"):$PATH"
 log "using pm2 at $PM2_BIN"
+
+resolve_http_port() {
+  local addr=""
+  if [ -f "$DEPLOY_DIR/.env" ]; then
+    addr="$(grep -E '^[[:space:]]*HTTP_ADDR[[:space:]]*=' "$DEPLOY_DIR/.env" | tail -n 1 | cut -d= -f2- | tr -d '"' | tr -d "'" | xargs || true)"
+  fi
+  [ -n "$addr" ] || addr=":8080"
+
+  printf '%s' "${addr##*:}"
+}
+
+if [ -z "$HEALTHCHECK_URL" ]; then
+  HEALTHCHECK_URL="http://127.0.0.1:$(resolve_http_port)/api/v1/healthz"
+fi
+if [ -z "$STATUS_URL" ]; then
+  STATUS_URL="http://127.0.0.1:$(resolve_http_port)/api/v1/status"
+fi
+log "healthcheck URL: $HEALTHCHECK_URL"
 
 [ -f "$BIN_SOURCE" ] || die "binary not found: $BIN_SOURCE"
 
