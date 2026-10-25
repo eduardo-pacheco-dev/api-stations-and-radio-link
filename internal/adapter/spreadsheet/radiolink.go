@@ -24,7 +24,7 @@ func ParseRadioLinks(reader io.Reader) (RadioLinkResult, error) {
 	}
 
 	index := mapHeaders(rows[0], radioLinkHeaderKey)
-	if err := requireHeaders(index, "link_id", "station_a_site_id", "station_b_site_id"); err != nil {
+	if err := requireHeaders(index, "station_a_site_id", "station_b_site_id"); err != nil {
 		return RadioLinkResult{}, err
 	}
 
@@ -90,7 +90,7 @@ func StreamRadioLinks(
 	}
 
 	index := mapHeaders(headers, radioLinkHeaderKey)
-	if err := requireHeaders(index, "link_id", "station_a_site_id", "station_b_site_id"); err != nil {
+	if err := requireHeaders(index, "station_a_site_id", "station_b_site_id"); err != nil {
 		return 0, err
 	}
 

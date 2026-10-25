@@ -16,4 +16,5 @@ type Repository interface {
 	List(ctx context.Context, filter ListFilter) ([]RadioLink, int64, error)
 	Update(ctx context.Context, data RadioLinkData) (RadioLink, error)
 	Delete(ctx context.Context, linkID string) error
+	StationsExist(ctx context.Context, siteIDs []string) (map[string]bool, error)
 }

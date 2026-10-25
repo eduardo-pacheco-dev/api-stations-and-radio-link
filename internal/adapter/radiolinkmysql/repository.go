@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -154,6 +155,28 @@ func (r *Repository) InsertBatch(ctx context.Context, rows []radiolink.RadioLink
 	}
 
 	return nil
+}
+
+// StationsExist reports which station site_ids exist, keyed by lowercase id.
+func (r *Repository) StationsExist(ctx context.Context, siteIDs []string) (map[string]bool, error) {
+	result := make(map[string]bool, len(siteIDs))
+	if len(siteIDs) == 0 {
+		return result, nil
+	}
+
+	var found []string
+	if err := r.db.WithContext(ctx).
+		Model(&gormmodel.Station{}).
+		Where("site_id IN ?", siteIDs).
+		Pluck("site_id", &found).Error; err != nil {
+		return nil, fmt.Errorf("check stations: %w", err)
+	}
+
+	for _, id := range found {
+		result[strings.ToLower(id)] = true
+	}
+
+	return result, nil
 }
 
 // UpsertBatch inserts or updates a batch of radio links and returns inserted/updated counts.

@@ -178,6 +178,7 @@ func TestProcessor_RadioLinks(t *testing.T) {
 		[]any{"LINK_ID", "STATION_A_SITE_ID", "STATION_B_SITE_ID", "FREQUENCIA_MHZ"},
 		[][]any{
 			{"RL-IMP-1", "IMP-A", "IMP-B", "18000,5"},
+			{"", "IMP-A", "IMP-B", "15000"},
 		},
 	)
 
@@ -203,5 +204,13 @@ func TestProcessor_RadioLinks(t *testing.T) {
 	}
 	if link.StationASiteID != "IMP-A" || link.FrequencyMHz == nil || *link.FrequencyMHz != 18000.5 {
 		t.Errorf("link = %+v, want IMP-A and frequency 18000.5", link)
+	}
+
+	generated, err := links.FindByID(t.Context(), "RL-IMP-A-IMP-B")
+	if err != nil {
+		t.Fatalf("find generated link: %v", err)
+	}
+	if generated.Name != "IMP-A <> IMP-B" {
+		t.Errorf("generated name = %q, want IMP-A <> IMP-B", generated.Name)
 	}
 }

@@ -19,7 +19,11 @@ func NewService(repo Repository) *Service {
 // Create validates and persists a radio link.
 func (s *Service) Create(ctx context.Context, data RadioLinkData) (RadioLink, error) {
 	data.Normalize()
+	data.EnsureGenerated()
 	if err := data.Validate(); err != nil {
+		return RadioLink{}, err
+	}
+	if err := s.validateStations(ctx, data); err != nil {
 		return RadioLink{}, err
 	}
 
@@ -69,7 +73,11 @@ func (s *Service) List(ctx context.Context, filter ListFilter) (Page, error) {
 func (s *Service) Update(ctx context.Context, linkID string, data RadioLinkData) (RadioLink, error) {
 	data.LinkID = strings.TrimSpace(linkID)
 	data.Normalize()
+	data.EnsureGenerated()
 	if err := data.Validate(); err != nil {
+		return RadioLink{}, err
+	}
+	if err := s.validateStations(ctx, data); err != nil {
 		return RadioLink{}, err
 	}
 
@@ -96,4 +104,20 @@ func validateLinkID(linkID string) (string, error) {
 	}
 
 	return linkID, nil
+}
+
+func (s *Service) validateStations(ctx context.Context, data RadioLinkData) error {
+	existing, err := s.repo.StationsExist(ctx, []string{data.StationASiteID, data.StationBSiteID})
+	if err != nil {
+		return err
+	}
+
+	if !existing[strings.ToLower(data.StationASiteID)] {
+		return fmt.Errorf("%w: station_a_site_id %q", ErrStationNotFound, data.StationASiteID)
+	}
+	if !existing[strings.ToLower(data.StationBSiteID)] {
+		return fmt.Errorf("%w: station_b_site_id %q", ErrStationNotFound, data.StationBSiteID)
+	}
+
+	return nil
 }

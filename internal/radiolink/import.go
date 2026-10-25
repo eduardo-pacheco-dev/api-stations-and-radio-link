@@ -67,6 +67,7 @@ func (s *Service) Import(ctx context.Context, rows []ImportRow, options ImportOp
 	for _, row := range rows {
 		data := row.Data
 		data.Normalize()
+		data.EnsureGenerated()
 
 		if err := data.Validate(); err != nil {
 			result.addError(row.Row, data.LinkID, err)

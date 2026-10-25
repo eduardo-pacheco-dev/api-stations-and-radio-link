@@ -311,6 +311,10 @@ Regras:
 - as duas pontas devem ser diferentes
 - estação referenciada por um link não pode ser removida (`409 station_in_use`)
 - `link_id` é imutável
+- Para criar, somente `station_a_site_id` e `station_b_site_id` são obrigatórios
+- `link_id` e `name` são gerados automaticamente quando omitidos:
+  - `link_id`: `RL-<ponta-a>-<ponta-b>` (ou hash determinístico se passar de 50 caracteres)
+  - `name`: `<ponta-a> <> <ponta-b>`
 
 ### Exemplo de criação
 
@@ -318,8 +322,6 @@ Regras:
 curl -X POST http://localhost:8080/api/v1/radio-links \
   -H "Content-Type: application/json" \
   -d '{
-    "link_id": "RL-0001",
-    "name": "TSHG01 <> CUI13",
     "station_a_site_id": "TSHG01",
     "station_b_site_id": "CUI13",
     "technology": "MW",
@@ -329,6 +331,15 @@ curl -X POST http://localhost:8080/api/v1/radio-links \
     "status": "Ativo",
     "observation": "LINK PRINCIPAL"
   }'
+```
+
+Nesse caso a API gera:
+
+```json
+{
+  "link_id": "RL-TSHG01-CUI13",
+  "name": "TSHG01 <> CUI13"
+}
 ```
 
 ## Importação em massa (Excel)
@@ -400,7 +411,8 @@ LINK_ID, NAME, STATION_A_SITE_ID, STATION_B_SITE_ID, TECHNOLOGY,
 FREQUENCY_MHZ, CAPACITY_MBPS, DISTANCE_KM, STATUS, OBSERVATION
 ```
 
-Obrigatórias: `LINK_ID`, `STATION_A_SITE_ID`, `STATION_B_SITE_ID`.
+Obrigatórias: `STATION_A_SITE_ID` e `STATION_B_SITE_ID`. Se `LINK_ID` ou
+`NAME` forem omitidos, são gerados automaticamente.
 
 > Para preservar zeros à esquerda no CEP, formate a coluna como texto no Excel.
 

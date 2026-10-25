@@ -244,6 +244,7 @@ func (p *Processor) processRadioLinks(ctx context.Context, job *importjob.Job) e
 		for _, row := range batch {
 			data := row.Data
 			data.Normalize()
+			data.EnsureGenerated()
 			if err := data.Validate(); err != nil {
 				job.AddError(p.errorLimit, row.Row, data.LinkID, err.Error())
 				continue

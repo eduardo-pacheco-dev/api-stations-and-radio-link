@@ -47,7 +47,7 @@ func (h *RadioLinkHandler) Register(mux *http.ServeMux) {
 // Create godoc
 //
 //	@Summary		Create radio link
-//	@Description	Creates a radio link between two stations (A and B). The link_id must be unique.
+//	@Description	Creates a radio link between two stations (A and B). Only station_a_site_id and station_b_site_id are required; link_id and name are generated when omitted.
 //	@Tags			radio-links
 //	@Accept			json
 //	@Produce		json
@@ -282,7 +282,7 @@ func (h *RadioLinkHandler) handleError(w http.ResponseWriter, r *http.Request, e
 	case errors.Is(err, radiolink.ErrStationNotFound):
 		writeJSON(w, http.StatusUnprocessableEntity, ErrorResponse{
 			Error:   "station_not_found",
-			Message: "station_a_site_id or station_b_site_id does not exist",
+			Message: err.Error(),
 		}, h.logger)
 	default:
 		h.logger.ErrorContext(r.Context(), "radio link request failed",

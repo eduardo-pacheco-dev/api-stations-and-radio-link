@@ -43,6 +43,26 @@ func TestParseRadioLinks(t *testing.T) {
 	}
 }
 
+func TestParseRadioLinks_LinkIDIsOptional(t *testing.T) {
+	t.Parallel()
+
+	reader := workbook(t,
+		[]any{"STATION_A_SITE_ID", "STATION_B_SITE_ID"},
+		[][]any{{"TSHG01", "CUI13"}},
+	)
+
+	result, err := spreadsheet.ParseRadioLinks(reader)
+	if err != nil {
+		t.Fatalf("ParseRadioLinks() error = %v", err)
+	}
+	if len(result.Rows) != 1 {
+		t.Fatalf("rows = %d, want 1", len(result.Rows))
+	}
+	if result.Rows[0].Data.LinkID != "" {
+		t.Errorf("link_id = %q, want empty for service generation", result.Rows[0].Data.LinkID)
+	}
+}
+
 func TestParseRadioLinks_MissingRequiredHeader(t *testing.T) {
 	t.Parallel()
 

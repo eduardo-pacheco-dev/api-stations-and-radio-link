@@ -28,6 +28,8 @@ type fakeRepository struct {
 
 	deleteID  string
 	deleteErr error
+
+	stations map[string]bool
 }
 
 func (f *fakeRepository) Create(_ context.Context, data radiolink.RadioLinkData) (radiolink.RadioLink, error) {
@@ -67,6 +69,19 @@ func (f *fakeRepository) Delete(_ context.Context, linkID string) error {
 	return f.deleteErr
 }
 
+func (f *fakeRepository) StationsExist(_ context.Context, siteIDs []string) (map[string]bool, error) {
+	if f.stations != nil {
+		return f.stations, nil
+	}
+
+	result := make(map[string]bool, len(siteIDs))
+	for _, siteID := range siteIDs {
+		result[strings.ToLower(siteID)] = true
+	}
+
+	return result, nil
+}
+
 func sampleData() radiolink.RadioLinkData {
 	frequency := 18000.0
 	capacity := 1000.0
@@ -104,13 +119,6 @@ func TestService_Create(t *testing.T) {
 				data.LinkID = "  RL-0001  "
 				data.StationASiteID = " TSHG01 "
 			},
-		},
-		{
-			name: "missing link id",
-			mutate: func(data *radiolink.RadioLinkData) {
-				data.LinkID = " "
-			},
-			wantErr: radiolink.ErrValidation,
 		},
 		{
 			name: "same station on both endpoints",
@@ -183,6 +191,87 @@ func TestService_Create(t *testing.T) {
 				t.Errorf("station_b_site_id = %q, want CUI13", created.StationBSiteID)
 			}
 		})
+	}
+}
+
+func TestService_Create_MinimalPayload(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeRepository{}
+	service := radiolink.NewService(repo)
+
+	created, err := service.Create(t.Context(), radiolink.RadioLinkData{
+		StationASiteID: "TSHG01",
+		StationBSiteID: "CUI13",
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if created.LinkID != "RL-TSHG01-CUI13" {
+		t.Errorf("link_id = %q, want RL-TSHG01-CUI13", created.LinkID)
+	}
+	if created.Name != "TSHG01 <> CUI13" {
+		t.Errorf("name = %q, want TSHG01 <> CUI13", created.Name)
+	}
+}
+
+func TestService_Create_GeneratesIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeRepository{}
+	service := radiolink.NewService(repo)
+
+	data := sampleData()
+	data.LinkID = ""
+	data.Name = ""
+
+	created, err := service.Create(t.Context(), data)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if created.LinkID != "RL-TSHG01-CUI13" {
+		t.Errorf("link_id = %q, want RL-TSHG01-CUI13", created.LinkID)
+	}
+	if created.Name != "TSHG01 <> CUI13" {
+		t.Errorf("name = %q, want TSHG01 <> CUI13", created.Name)
+	}
+}
+
+func TestService_Create_GeneratesHashedIDForLongStations(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeRepository{}
+	service := radiolink.NewService(repo)
+
+	data := sampleData()
+	data.StationASiteID = strings.Repeat("A", 50)
+	data.StationBSiteID = strings.Repeat("B", 50)
+	data.LinkID = ""
+	data.Name = ""
+
+	created, err := service.Create(t.Context(), data)
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if len(created.LinkID) != 15 || !strings.HasPrefix(created.LinkID, "RL-") {
+		t.Errorf("link_id = %q, want RL- plus 12 hash characters", created.LinkID)
+	}
+}
+
+func TestService_Create_StationNotFound(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeRepository{
+		stations: map[string]bool{"tshg01": true},
+	}
+	service := radiolink.NewService(repo)
+
+	_, err := service.Create(t.Context(), sampleData())
+	if !errors.Is(err, radiolink.ErrStationNotFound) {
+		t.Fatalf("Create() error = %v, want ErrStationNotFound", err)
+	}
+	if repo.createCalled {
+		t.Error("Create() called repository when station B does not exist")
 	}
 }
 

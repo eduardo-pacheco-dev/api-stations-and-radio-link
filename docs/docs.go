@@ -196,7 +196,7 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Creates a radio link between two stations (A and B). The link_id must be unique.",
+                "description": "Creates a radio link between two stations (A and B). Only station_a_site_id and station_b_site_id are required; link_id and name are generated when omitted.",
                 "consumes": [
                     "application/json"
                 ],

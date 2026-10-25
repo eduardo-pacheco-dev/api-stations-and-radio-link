@@ -2,6 +2,8 @@
 package radiolink
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -27,6 +29,62 @@ type RadioLink struct {
 	RadioLinkData
 	CreatedAt time.Time `json:"created_at" example:"2026-10-24T12:00:00Z"`
 	UpdatedAt time.Time `json:"updated_at" example:"2026-10-24T12:00:00Z"`
+}
+
+// EnsureGenerated fills link_id and name when they are not provided.
+//
+// link_id uses RL-<station-a>-<station-b> when it fits in 50 characters;
+// otherwise a deterministic hash is used. name uses "<station-a> <> <station-b>".
+func (d *RadioLinkData) EnsureGenerated() {
+	if d.StationASiteID == "" || d.StationBSiteID == "" {
+		return
+	}
+
+	if d.Name == "" {
+		d.Name = d.StationASiteID + " <> " + d.StationBSiteID
+	}
+	if d.LinkID == "" {
+		d.LinkID = generateLinkID(d.StationASiteID, d.StationBSiteID)
+	}
+}
+
+func generateLinkID(stationA, stationB string) string {
+	partA := sanitizeLinkPart(stationA)
+	partB := sanitizeLinkPart(stationB)
+
+	candidate := "RL-" + partA + "-" + partB
+	if len([]rune(candidate)) <= 50 {
+		return candidate
+	}
+
+	digest := sha256.Sum256([]byte(partA + "|" + partB))
+
+	return "RL-" + hex.EncodeToString(digest[:])[:12]
+}
+
+func sanitizeLinkPart(value string) string {
+	value = strings.ToUpper(strings.TrimSpace(value))
+
+	var builder strings.Builder
+	lastDash := false
+	for _, char := range value {
+		if (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') {
+			builder.WriteRune(char)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			builder.WriteByte('-')
+			lastDash = true
+		}
+	}
+
+	sanitized := strings.Trim(builder.String(), "-")
+	if sanitized == "" {
+		return "STATION"
+	}
+
+	return sanitized
 }
 
 // Normalize trims user-provided values.

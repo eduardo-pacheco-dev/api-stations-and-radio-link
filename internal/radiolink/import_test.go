@@ -3,6 +3,7 @@ package radiolink_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
@@ -65,6 +66,39 @@ func (r *importRepository) Delete(_ context.Context, linkID string) error {
 	return nil
 }
 
+func (r *importRepository) StationsExist(_ context.Context, siteIDs []string) (map[string]bool, error) {
+	result := make(map[string]bool, len(siteIDs))
+	for _, siteID := range siteIDs {
+		result[strings.ToLower(siteID)] = true
+	}
+
+	return result, nil
+}
+
+func TestService_Import_GeneratesIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	repo := newImportRepository()
+	service := radiolink.NewService(repo)
+
+	data := sampleData()
+	data.LinkID = ""
+	data.Name = ""
+
+	if _, err := service.Import(t.Context(), []radiolink.ImportRow{{Row: 2, Data: data}}, radiolink.ImportOptions{}); err != nil {
+		t.Fatalf("Import() error = %v", err)
+	}
+	if len(repo.created) != 1 {
+		t.Fatalf("created = %d, want 1", len(repo.created))
+	}
+	if repo.created[0].LinkID != "RL-TSHG01-CUI13" {
+		t.Errorf("link_id = %q, want RL-TSHG01-CUI13", repo.created[0].LinkID)
+	}
+	if repo.created[0].Name != "TSHG01 <> CUI13" {
+		t.Errorf("name = %q, want TSHG01 <> CUI13", repo.created[0].Name)
+	}
+}
+
 func TestService_Import_Insert(t *testing.T) {
 	t.Parallel()
 
@@ -97,6 +131,7 @@ func TestService_Import_PartialValidationFailure(t *testing.T) {
 	valid := sampleData()
 	invalid := sampleData()
 	invalid.LinkID = ""
+	invalid.StationASiteID = ""
 
 	result, err := service.Import(t.Context(), []radiolink.ImportRow{
 		{Row: 2, Data: valid},
