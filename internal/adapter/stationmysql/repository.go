@@ -179,6 +179,11 @@ func (r *Repository) Update(ctx context.Context, data station.StationData) (stat
 func (r *Repository) Delete(ctx context.Context, siteID string) error {
 	result, err := r.db.ExecContext(ctx, "DELETE FROM stations WHERE site_id = ?", siteID)
 	if err != nil {
+		var mysqlErr *mysql.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1451 {
+			return fmt.Errorf("delete station %q: %w", siteID, station.ErrInUse)
+		}
+
 		return fmt.Errorf("delete station %q: %w", siteID, err)
 	}
 

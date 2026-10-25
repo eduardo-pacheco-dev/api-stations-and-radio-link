@@ -334,6 +334,11 @@ func TestStationHandler_Delete(t *testing.T) {
 			service:  &stationServiceStub{deleteErr: station.ErrNotFound},
 			wantCode: http.StatusNotFound,
 		},
+		{
+			name:     "in use by radio link",
+			service:  &stationServiceStub{deleteErr: station.ErrInUse},
+			wantCode: http.StatusConflict,
+		},
 	}
 
 	for _, tt := range tests {

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"os"
 	"time"
@@ -45,24 +46,40 @@ func main() {
 		log.Fatalf("run migrations: %v", err)
 	}
 
-	seedFile := os.Getenv("SEED_FILE")
-	if seedFile == "" {
-		seedFile = "scripts/seed.sql"
+	seedFiles := []string{"scripts/seed.sql", "scripts/seed_radio_links.sql"}
+	if custom := os.Getenv("SEED_FILE"); custom != "" {
+		seedFiles = []string{custom}
 	}
 
-	content, err := os.ReadFile(seedFile)
+	for _, seedFile := range seedFiles {
+		content, err := os.ReadFile(seedFile)
+		if err != nil {
+			log.Fatalf("read seed file %q: %v", seedFile, err)
+		}
+
+		if _, err := db.ExecContext(ctx, string(content)); err != nil {
+			log.Fatalf("apply seed %q: %v", seedFile, err)
+		}
+
+		log.Printf("seed applied from %s", seedFile)
+	}
+
+	stations, err := countRows(ctx, db, "stations")
 	if err != nil {
-		log.Fatalf("read seed file %q: %v", seedFile, err)
-	}
-
-	if _, err := db.ExecContext(ctx, string(content)); err != nil {
-		log.Fatalf("apply seed %q: %v", seedFile, err)
-	}
-
-	var total int
-	if err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM stations").Scan(&total); err != nil {
 		log.Fatalf("count stations: %v", err)
 	}
 
-	log.Printf("seed applied from %s: %d stations", seedFile, total)
+	radioLinks, err := countRows(ctx, db, "radio_links")
+	if err != nil {
+		log.Fatalf("count radio links: %v", err)
+	}
+
+	log.Printf("seed complete: %d stations, %d radio links", stations, radioLinks)
+}
+
+func countRows(ctx context.Context, db *sql.DB, table string) (int, error) {
+	var total int
+	err := db.QueryRowContext(ctx, "SELECT COUNT(*) FROM "+table).Scan(&total)
+
+	return total, err
 }

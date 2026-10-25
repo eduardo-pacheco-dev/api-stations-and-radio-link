@@ -166,5 +166,8 @@ var ErrNotFound = errors.New("station not found")
 // ErrAlreadyExists indicates that a station with the same site_id exists.
 var ErrAlreadyExists = errors.New("station already exists")
 
+// ErrInUse indicates that a station is referenced by another resource.
+var ErrInUse = errors.New("station is in use")
+
 // ErrValidation indicates invalid station data.
 var ErrValidation = errors.New("validation failed")

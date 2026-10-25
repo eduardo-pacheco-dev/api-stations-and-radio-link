@@ -19,9 +19,11 @@ import (
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/docs"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/database"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/httpapi"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/radiolinkmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/sqlpinger"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/stationmysql"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/config"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/status"
 )
@@ -77,12 +79,17 @@ func run() error {
 	stationService := station.NewService(stationRepository)
 	stationHandler := httpapi.NewStationHandler(stationService, logger)
 
+	radioLinkRepository := radiolinkmysql.NewRepository(db)
+	radioLinkService := radiolink.NewService(radioLinkRepository)
+	radioLinkHandler := httpapi.NewRadioLinkHandler(radioLinkService, logger)
+
 	statusHandler := httpapi.NewStatusHandler(statusService, logger)
 	router := httpapi.NewRouter(httpapi.RouterConfig{
-		StatusHandler:  statusHandler,
-		StationHandler: stationHandler,
-		SwaggerHandler: httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")),
-		Logger:         logger,
+		StatusHandler:    statusHandler,
+		StationHandler:   stationHandler,
+		RadioLinkHandler: radioLinkHandler,
+		SwaggerHandler:   httpSwagger.Handler(httpSwagger.URL("/swagger/doc.json")),
+		Logger:           logger,
 	})
 
 	docs.SwaggerInfo.Host = cfg.HTTP.SwaggerHost

@@ -25,14 +25,17 @@ o banco de dados.
 │   ├── adapter/
 │   │   ├── database/                       # abertura, pool, migrações
 │   │   ├── httpapi/                        # rotas, handlers, middleware
+│   │   ├── radiolinkmysql/                 # repositório MySQL de radio links
 │   │   ├── sqlpinger/                      # adapter de ping no banco
 │   │   └── stationmysql/                   # repositório MySQL de stations
 │   ├── config/                             # configuração via variáveis de ambiente
+│   ├── radiolink/                          # domínio, casos de uso e porta Repository
 │   ├── station/                            # domínio, casos de uso e porta Repository
 │   └── status/                             # caso de uso + portas + read model
 ├── scripts/
 │   ├── init.sql                            # cria o banco local
-│   └── seed.sql                            # estação de exemplo
+│   ├── seed.sql                            # stations de exemplo
+│   └── seed_radio_links.sql                # radio links de exemplo
 ├── docker-compose.yml                      # MySQL local (root/admin)
 ├── deploy.sh                               # deploy atômico com PM2, healthcheck e rollback
 ├── ecosystem.config.cjs                    # configuração do PM2
@@ -278,6 +281,48 @@ curl -X POST http://localhost:8080/api/v1/stations \
 
 As coordenadas são números decimais na API: `-18,345528` vira `-18.345528`.
 
+## Radio Links
+
+CRUD em `/api/v1/radio-links`. Cada link possui uma ponta A e uma ponta B,
+referenciando `stations.site_id`.
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `POST` | `/api/v1/radio-links` | Cria um radio link |
+| `GET` | `/api/v1/radio-links` | Lista com paginação, busca e filtro por estação |
+| `GET` | `/api/v1/radio-links/{linkID}` | Busca por `link_id` |
+| `PUT` | `/api/v1/radio-links/{linkID}` | Substitui os dados do link |
+| `DELETE` | `/api/v1/radio-links/{linkID}` | Remove o link |
+
+A listagem aceita `page`, `page_size`, `search` (`link_id`, `name`, estações e
+tecnologia) e `station_id` (links em que a estação é ponta A ou B).
+
+Regras:
+
+- `station_a_site_id` e `station_b_site_id` precisam existir
+- as duas pontas devem ser diferentes
+- estação referenciada por um link não pode ser removida (`409 station_in_use`)
+- `link_id` é imutável
+
+### Exemplo de criação
+
+```bash
+curl -X POST http://localhost:8080/api/v1/radio-links \
+  -H "Content-Type: application/json" \
+  -d '{
+    "link_id": "RL-0001",
+    "name": "TSHG01 <> CUI13",
+    "station_a_site_id": "TSHG01",
+    "station_b_site_id": "CUI13",
+    "technology": "MW",
+    "frequency_mhz": 18000,
+    "capacity_mbps": 1000,
+    "distance_km": 420.5,
+    "status": "Ativo",
+    "observation": "LINK PRINCIPAL"
+  }'
+```
+
 ## Migrações e seed
 
 As migrações são embutidas no binário e aplicadas automaticamente ao iniciar a
@@ -289,9 +334,10 @@ make migrate
 go run ./cmd/migrate
 ```
 
-O seed de desenvolvimento fica em `scripts/seed.sql` e é idempotente: registros
-com o mesmo `site_id` são atualizados. Ele cria 15 estações de exemplo cobrindo
-tecnologias, estados, status e coordenadas nulas.
+O seed de desenvolvimento é idempotente e aplicado nesta ordem:
+
+- `scripts/seed.sql`: 15 stations de exemplo
+- `scripts/seed_radio_links.sql`: 7 radio links entre essas stations
 
 ```bash
 make seed
@@ -299,7 +345,7 @@ make seed
 go run ./cmd/seed
 ```
 
-Para usar outro arquivo:
+Para usar apenas um arquivo customizado:
 
 ```bash
 SEED_FILE=./meu-seed.sql go run ./cmd/seed
@@ -495,8 +541,8 @@ bash /root/app/api-stations-and-radio-link/incoming/deploy.sh
 
 ## Próximos passos
 
-- Endpoints de enlace de rádio
-- `PATCH` para atualização parcial de stations
+- `PATCH` para atualização parcial de stations e radio links
 - Filtros por estado, status e tecnologia
+- Cálculo automático de distância entre as pontas
 - Autenticação/autorização
-- Health check separado de readiness/liveness
+- Paginação por cursor para grandes volumes

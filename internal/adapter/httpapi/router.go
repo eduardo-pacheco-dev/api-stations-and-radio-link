@@ -8,10 +8,11 @@ import (
 
 // RouterConfig contains the HTTP handlers wired into the router.
 type RouterConfig struct {
-	StatusHandler  *StatusHandler
-	StationHandler *StationHandler
-	SwaggerHandler http.Handler
-	Logger         *slog.Logger
+	StatusHandler    *StatusHandler
+	StationHandler   *StationHandler
+	RadioLinkHandler *RadioLinkHandler
+	SwaggerHandler   http.Handler
+	Logger           *slog.Logger
 }
 
 // NewRouter wires the HTTP routes and middleware.
@@ -27,6 +28,10 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	if cfg.StationHandler != nil {
 		cfg.StationHandler.Register(mux)
+	}
+
+	if cfg.RadioLinkHandler != nil {
+		cfg.RadioLinkHandler.Register(mux)
 	}
 
 	if cfg.SwaggerHandler != nil {

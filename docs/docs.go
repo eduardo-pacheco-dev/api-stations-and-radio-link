@@ -35,6 +35,265 @@ const docTemplate = `{
                 }
             }
         },
+        "/radio-links": {
+            "get": {
+                "description": "Returns a paginated list of radio links.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "radio-links"
+                ],
+                "summary": "List radio links",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size (max 100)",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search by link_id, name, stations or technology",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter links where the station is endpoint A or B",
+                        "name": "station_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/radiolink.Page"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Creates a radio link between two stations (A and B). The link_id must be unique.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "radio-links"
+                ],
+                "summary": "Create radio link",
+                "parameters": [
+                    {
+                        "description": "Radio link data",
+                        "name": "radioLink",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/radiolink.RadioLinkData"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/radiolink.RadioLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/radio-links/{linkID}": {
+            "get": {
+                "description": "Returns a radio link by link_id.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "radio-links"
+                ],
+                "summary": "Get radio link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Radio link link_id",
+                        "name": "linkID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/radiolink.RadioLink"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Updates a radio link by link_id. The link_id cannot be changed.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "radio-links"
+                ],
+                "summary": "Update radio link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Radio link link_id",
+                        "name": "linkID",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Radio link data",
+                        "name": "radioLink",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/radiolink.RadioLinkData"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/radiolink.RadioLink"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Deletes a radio link by link_id.",
+                "tags": [
+                    "radio-links"
+                ],
+                "summary": "Delete radio link",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Radio link link_id",
+                        "name": "linkID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content"
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/httpapi.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/stations": {
             "get": {
                 "description": "Returns a paginated list of stations.",
@@ -317,6 +576,131 @@ const docTemplate = `{
                 "status": {
                     "type": "string",
                     "example": "ok"
+                }
+            }
+        },
+        "radiolink.Page": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/radiolink.RadioLink"
+                    }
+                },
+                "page": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "page_size": {
+                    "type": "integer",
+                    "example": 20
+                },
+                "total": {
+                    "type": "integer",
+                    "example": 1
+                },
+                "total_pages": {
+                    "type": "integer",
+                    "example": 1
+                }
+            }
+        },
+        "radiolink.RadioLink": {
+            "type": "object",
+            "properties": {
+                "capacity_mbps": {
+                    "type": "number",
+                    "example": 1000
+                },
+                "created_at": {
+                    "type": "string",
+                    "example": "2026-10-24T12:00:00Z"
+                },
+                "distance_km": {
+                    "type": "number",
+                    "example": 420.5
+                },
+                "frequency_mhz": {
+                    "type": "number",
+                    "example": 18000
+                },
+                "link_id": {
+                    "type": "string",
+                    "example": "RL-0001"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "TSHG01 \u003c\u003e CUI13"
+                },
+                "observation": {
+                    "type": "string",
+                    "example": "Link principal"
+                },
+                "station_a_site_id": {
+                    "type": "string",
+                    "example": "TSHG01"
+                },
+                "station_b_site_id": {
+                    "type": "string",
+                    "example": "CUI13"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ativo"
+                },
+                "technology": {
+                    "type": "string",
+                    "example": "MW"
+                },
+                "updated_at": {
+                    "type": "string",
+                    "example": "2026-10-24T12:00:00Z"
+                }
+            }
+        },
+        "radiolink.RadioLinkData": {
+            "type": "object",
+            "properties": {
+                "capacity_mbps": {
+                    "type": "number",
+                    "example": 1000
+                },
+                "distance_km": {
+                    "type": "number",
+                    "example": 420.5
+                },
+                "frequency_mhz": {
+                    "type": "number",
+                    "example": 18000
+                },
+                "link_id": {
+                    "type": "string",
+                    "example": "RL-0001"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "TSHG01 \u003c\u003e CUI13"
+                },
+                "observation": {
+                    "type": "string",
+                    "example": "Link principal"
+                },
+                "station_a_site_id": {
+                    "type": "string",
+                    "example": "TSHG01"
+                },
+                "station_b_site_id": {
+                    "type": "string",
+                    "example": "CUI13"
+                },
+                "status": {
+                    "type": "string",
+                    "example": "Ativo"
+                },
+                "technology": {
+                    "type": "string",
+                    "example": "MW"
                 }
             }
         },

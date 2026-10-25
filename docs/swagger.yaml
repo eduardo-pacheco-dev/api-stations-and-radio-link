@@ -15,6 +15,97 @@ definitions:
         example: ok
         type: string
     type: object
+  radiolink.Page:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/radiolink.RadioLink'
+        type: array
+      page:
+        example: 1
+        type: integer
+      page_size:
+        example: 20
+        type: integer
+      total:
+        example: 1
+        type: integer
+      total_pages:
+        example: 1
+        type: integer
+    type: object
+  radiolink.RadioLink:
+    properties:
+      capacity_mbps:
+        example: 1000
+        type: number
+      created_at:
+        example: "2026-10-24T12:00:00Z"
+        type: string
+      distance_km:
+        example: 420.5
+        type: number
+      frequency_mhz:
+        example: 18000
+        type: number
+      link_id:
+        example: RL-0001
+        type: string
+      name:
+        example: TSHG01 <> CUI13
+        type: string
+      observation:
+        example: Link principal
+        type: string
+      station_a_site_id:
+        example: TSHG01
+        type: string
+      station_b_site_id:
+        example: CUI13
+        type: string
+      status:
+        example: Ativo
+        type: string
+      technology:
+        example: MW
+        type: string
+      updated_at:
+        example: "2026-10-24T12:00:00Z"
+        type: string
+    type: object
+  radiolink.RadioLinkData:
+    properties:
+      capacity_mbps:
+        example: 1000
+        type: number
+      distance_km:
+        example: 420.5
+        type: number
+      frequency_mhz:
+        example: 18000
+        type: number
+      link_id:
+        example: RL-0001
+        type: string
+      name:
+        example: TSHG01 <> CUI13
+        type: string
+      observation:
+        example: Link principal
+        type: string
+      station_a_site_id:
+        example: TSHG01
+        type: string
+      station_b_site_id:
+        example: CUI13
+        type: string
+      status:
+        example: Ativo
+        type: string
+      technology:
+        example: MW
+        type: string
+    type: object
   station.Page:
     properties:
       items:
@@ -249,6 +340,179 @@ paths:
       summary: Liveness probe
       tags:
       - health
+  /radio-links:
+    get:
+      description: Returns a paginated list of radio links.
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size (max 100)
+        in: query
+        name: page_size
+        type: integer
+      - description: Search by link_id, name, stations or technology
+        in: query
+        name: search
+        type: string
+      - description: Filter links where the station is endpoint A or B
+        in: query
+        name: station_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/radiolink.Page'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: List radio links
+      tags:
+      - radio-links
+    post:
+      consumes:
+      - application/json
+      description: Creates a radio link between two stations (A and B). The link_id
+        must be unique.
+      parameters:
+      - description: Radio link data
+        in: body
+        name: radioLink
+        required: true
+        schema:
+          $ref: '#/definitions/radiolink.RadioLinkData'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/radiolink.RadioLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Create radio link
+      tags:
+      - radio-links
+  /radio-links/{linkID}:
+    delete:
+      description: Deletes a radio link by link_id.
+      parameters:
+      - description: Radio link link_id
+        in: path
+        name: linkID
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No content
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Delete radio link
+      tags:
+      - radio-links
+    get:
+      description: Returns a radio link by link_id.
+      parameters:
+      - description: Radio link link_id
+        in: path
+        name: linkID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/radiolink.RadioLink'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Get radio link
+      tags:
+      - radio-links
+    put:
+      consumes:
+      - application/json
+      description: Updates a radio link by link_id. The link_id cannot be changed.
+      parameters:
+      - description: Radio link link_id
+        in: path
+        name: linkID
+        required: true
+        type: string
+      - description: Radio link data
+        in: body
+        name: radioLink
+        required: true
+        schema:
+          $ref: '#/definitions/radiolink.RadioLinkData'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/radiolink.RadioLink'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "422":
+          description: Unprocessable Entity
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httpapi.ErrorResponse'
+      summary: Update radio link
+      tags:
+      - radio-links
   /stations:
     get:
       description: Returns a paginated list of stations.

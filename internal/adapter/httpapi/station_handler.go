@@ -211,6 +211,11 @@ func (h *StationHandler) handleError(w http.ResponseWriter, r *http.Request, err
 			Error:   "already_exists",
 			Message: "a station with this site_id already exists",
 		}, h.logger)
+	case errors.Is(err, station.ErrInUse):
+		writeJSON(w, http.StatusConflict, ErrorResponse{
+			Error:   "station_in_use",
+			Message: "this station is referenced by a radio link",
+		}, h.logger)
 	default:
 		h.logger.ErrorContext(r.Context(), "station request failed",
 			"method", r.Method,

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/adapter/httpapi"
+	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/radiolink"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/station"
 	"github.com/eduardo-pacheco-dev/api-stations-and-radio-link/internal/status"
 )
@@ -100,6 +101,25 @@ func TestRouter(t *testing.T) {
 		})
 		response := httptest.NewRecorder()
 		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/stations", nil))
+
+		if response.Code != http.StatusOK {
+			t.Errorf("status code = %d, want %d", response.Code, http.StatusOK)
+		}
+	})
+
+	t.Run("radio links route", func(t *testing.T) {
+		t.Parallel()
+
+		router := httpapi.NewRouter(httpapi.RouterConfig{
+			StatusHandler: httpapi.NewStatusHandler(checkerStub{}, logger),
+			RadioLinkHandler: httpapi.NewRadioLinkHandler(&radioLinkServiceStub{
+				listResult: radiolink.Page{Items: []radiolink.RadioLink{}, Page: 1, PageSize: 20},
+			}, logger),
+			SwaggerHandler: swagger,
+			Logger:         logger,
+		})
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/v1/radio-links", nil))
 
 		if response.Code != http.StatusOK {
 			t.Errorf("status code = %d, want %d", response.Code, http.StatusOK)
